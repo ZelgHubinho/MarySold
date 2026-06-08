@@ -766,7 +766,12 @@ class _PosDashboardState extends State<PosDashboard> {
                         builder: (context, setModalState) {
                           return Container(
                             padding: const EdgeInsets.all(16),
-                            child: _buildCartPanel(isMobileModal: true),
+                            child: _buildCartPanel(
+                              isMobileModal: true,
+                              onCartChanged: () {
+                                setModalState(() {});
+                              },
+                            ),
                           );
                         },
                       );
@@ -785,7 +790,7 @@ class _PosDashboardState extends State<PosDashboard> {
     );
   }
 
-  Widget _buildCartPanel({bool isMobileModal = false}) {
+  Widget _buildCartPanel({bool isMobileModal = false, VoidCallback? onCartChanged}) {
     final cartList = _cart.entries.toList();
 
     return Column(
@@ -889,9 +894,8 @@ class _PosDashboardState extends State<PosDashboard> {
                               icon: const Icon(Icons.remove_circle_outline_rounded, color: Colors.grey),
                               onPressed: () {
                                 _removeFromCart(item);
-                                if (isMobileModal) {
-                                  // Update modal sheet UI
-                                  (context as Element).markNeedsBuild();
+                                if (onCartChanged != null) {
+                                  onCartChanged();
                                 }
                               },
                             ),
@@ -913,8 +917,8 @@ class _PosDashboardState extends State<PosDashboard> {
                                 onPressed: canAdd
                                     ? () {
                                         _addToCart(item);
-                                        if (isMobileModal) {
-                                          (context as Element).markNeedsBuild();
+                                        if (onCartChanged != null) {
+                                          onCartChanged();
                                         }
                                       }
                                     : null,
