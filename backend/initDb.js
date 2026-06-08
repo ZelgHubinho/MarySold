@@ -120,14 +120,16 @@ async function run() {
         price NUMERIC(10, 2) NOT NULL,
         quantity INTEGER NOT NULL DEFAULT 0,
         type VARCHAR(50) NOT NULL DEFAULT 'Otros',
-        photo_url VARCHAR(255)
+        photo_url VARCHAR(255),
+        barcode VARCHAR(100) UNIQUE
       );
     `);
 
-    // Migrate items table by adding type column if it doesn't exist yet
-    console.log('Migrating items table to add type column if needed...');
+    // Migrate items table by adding type and barcode columns if they don't exist yet
+    console.log('Migrating items table to add type and barcode columns if needed...');
     await marysoldClient.query(`
       ALTER TABLE items ADD COLUMN IF NOT EXISTS type VARCHAR(50) NOT NULL DEFAULT 'Otros';
+      ALTER TABLE items ADD COLUMN IF NOT EXISTS barcode VARCHAR(100) UNIQUE;
     `);
 
     // Create audit_logs table

@@ -89,6 +89,7 @@ class ItemController extends ChangeNotifier {
     required int quantity,
     required String type,
     String? photoPath,
+    String? barcode,
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -101,6 +102,9 @@ class ItemController extends ChangeNotifier {
         'quantity': quantity.toString(),
         'type': type,
       };
+      if (barcode != null) {
+        fields['barcode'] = barcode;
+      }
 
       await _apiClient.multipart(
         'POST',
@@ -133,6 +137,7 @@ class ItemController extends ChangeNotifier {
     required int quantity,
     required String type,
     String? photoPath,
+    String? barcode,
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -145,6 +150,9 @@ class ItemController extends ChangeNotifier {
         'quantity': quantity.toString(),
         'type': type,
       };
+      if (barcode != null) {
+        fields['barcode'] = barcode;
+      }
 
       await _apiClient.multipart(
         'PUT',
@@ -167,6 +175,29 @@ class ItemController extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       return false;
+    }
+  }
+
+  Future<Item?> fetchItemByBarcode(String barcode) async {
+    _errorMessage = null;
+    try {
+      final response = await _apiClient.get('/items/barcode/$barcode');
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        if (decoded.containsKey('error')) {
+          _errorMessage = decoded['error'];
+          return null;
+        }
+        return Item.fromJson(decoded);
+      }
+      return null;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      return null;
+    } catch (e) {
+      _errorMessage = 'Error al buscar el código de barras.';
+      debugPrint('Error fetching item by barcode: $e');
+      return null;
     }
   }
 

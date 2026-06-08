@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getItems, getItem, create, update, remove, checkout } from './items.controller.js';
+import { getItems, getItem, create, update, remove, checkout, getByBarcode } from './items.controller.js';
 import { authenticateToken, requireRole } from '../../middleware/auth.js';
 import upload from '../../middleware/upload.js';
 
@@ -10,6 +10,7 @@ router.use(authenticateToken);
 
 // Read endpoints (accessible by both admin and seller)
 router.get('/', getItems);
+router.get('/barcode/:barcode', requireRole(['admin', 'seller']), getByBarcode);
 router.get('/:id', getItem);
 
 // Checkout endpoint (accessible by both admin and seller)

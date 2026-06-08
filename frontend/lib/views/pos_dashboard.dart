@@ -1,4 +1,7 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/item_controller.dart';
 import '../models/item.dart';
@@ -261,6 +264,229 @@ class _PosDashboardState extends State<PosDashboard> {
     );
   }
 
+  Future<void> _scanBarcode({VoidCallback? onScanSuccess}) async {
+    showDialog(
+      context: context,
+      builder: (context) => BarcodeScannerDialog(
+        onScan: (barcode) async {
+          final messenger = ScaffoldMessenger.of(context);
+          final item = await _itemController.fetchItemByBarcode(barcode);
+          if (item == null) {
+            final err = _itemController.errorMessage ?? 'Artículo no registrado.';
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text('Error: $err'),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+            return;
+          }
+
+          final latestItem = _itemController.items.firstWhere(
+            (i) => i.id == item.id,
+            orElse: () => item,
+          );
+          final cartQty = _cart[latestItem] ?? 0;
+          if (latestItem.quantity <= 0) {
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text('"${item.name}" no tiene stock disponible.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            return;
+          }
+          if (cartQty >= latestItem.quantity) {
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text('Límite de stock alcanzado para "${item.name}".'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            return;
+          }
+
+          _addToCart(item);
+          if (onScanSuccess != null) {
+            onScanSuccess();
+          }
+
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text('"${item.name}" agregado al carrito.'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 1),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showItemImageDetail(Item item) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        // Calculate remaining stock in real time
+        final cartQty = _cart[item] ?? 0;
+        final remainingStock = item.quantity - cartQty;
+        final isOutOfStock = remainingStock <= 0;
+        final photoUrl = item.fullPhotoUrl;
+
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          elevation: 8,
+          clipBehavior: Clip.antiAlias,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 450),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Top Image area
+                Stack(
+                  children: [
+                    Container(
+                      height: 300,
+                      width: double.infinity,
+                      color: Colors.grey.shade100,
+                      child: photoUrl != null
+                          ? Image.network(
+                              photoUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, err, stack) => const Center(
+                                child: Icon(Icons.broken_image_rounded, size: 80, color: Colors.grey),
+                              ),
+                            )
+                          : const Center(
+                              child: Icon(Icons.image_not_supported_rounded, size: 80, color: Colors.grey),
+                            ),
+                    ),
+                    // Close button
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: CircleAvatar(
+                        backgroundColor: Colors.black.withOpacity(0.4),
+                        child: IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                      ),
+                    ),
+                    // Category/Type Pill
+                    Positioned(
+                      bottom: 12,
+                      left: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E3C72).withOpacity(0.85),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          item.type.toUpperCase(),
+                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                // Item details
+                Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.name,
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '\$${item.price.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1E3C72),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: isOutOfStock ? Colors.red.shade50 : Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isOutOfStock ? Colors.red.shade100 : Colors.green.shade100,
+                              ),
+                            ),
+                            child: Text(
+                              isOutOfStock ? 'Sin stock' : 'Stock: $remainingStock unidades',
+                              style: TextStyle(
+                                color: isOutOfStock ? Colors.red : Colors.green.shade800,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (item.barcode != null && item.barcode!.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        const Divider(),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(Icons.qr_code_rounded, size: 20, color: Colors.grey),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Código: ${item.barcode}',
+                              style: const TextStyle(color: Colors.grey, fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      // Add to cart action button
+                      ElevatedButton.icon(
+                        onPressed: isOutOfStock
+                            ? null
+                            : () {
+                                _addToCart(item);
+                                Navigator.of(context).pop();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('"${item.name}" agregado al carrito.'),
+                                    backgroundColor: Colors.green,
+                                    duration: const Duration(seconds: 1),
+                                  ),
+                                );
+                              },
+                        icon: const Icon(Icons.add_shopping_cart_rounded),
+                        label: const Text('Agregar al Carrito', style: TextStyle(fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1E3C72),
+                          foregroundColor: Colors.white,
+                          elevation: 2,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          minimumSize: const Size(double.infinity, 50),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = widget.authController.currentUser;
@@ -402,7 +628,7 @@ class _PosDashboardState extends State<PosDashboard> {
                           AnimatedContainer(
                             duration: const Duration(milliseconds: 250),
                             curve: Curves.easeInOut,
-                            width: _searchFocusNode.hasFocus ? 0 : 174,
+                            width: _searchFocusNode.hasFocus ? 0 : 232,
                             decoration: const BoxDecoration(),
                             clipBehavior: Clip.antiAlias,
                             child: SingleChildScrollView(
@@ -421,6 +647,18 @@ class _PosDashboardState extends State<PosDashboard> {
                                     ),
                                     tooltip: 'Actualizar Catálogo',
                                     onPressed: () => _itemController.fetchItems(paginate: true),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  IconButton(
+                                    icon: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF1E3C72)),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: Colors.white,
+                                      elevation: 2,
+                                      fixedSize: const Size(46, 46),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                    tooltip: 'Escanear Código de Barras',
+                                    onPressed: () => _scanBarcode(),
                                   ),
                                   const SizedBox(width: 12),
                                   IconButton(
@@ -661,21 +899,24 @@ class _PosDashboardState extends State<PosDashboard> {
                                               children: [
                                                 // Image / Image placeholder
                                                 Expanded(
-                                                  child: Container(
-                                                    color: Colors.grey.shade100,
-                                                    child: photoUrl != null
-                                                        ? Image.network(
-                                                            photoUrl,
-                                                            fit: BoxFit.cover,
-                                                            errorBuilder: (context, err, stack) {
-                                                              return const Center(
-                                                                child: Icon(Icons.broken_image_rounded, color: Colors.grey, size: 40),
-                                                              );
-                                                            },
-                                                          )
-                                                        : const Center(
-                                                            child: Icon(Icons.image_not_supported_rounded, color: Colors.grey, size: 40),
-                                                          ),
+                                                  child: GestureDetector(
+                                                    onTap: () => _showItemImageDetail(item),
+                                                    child: Container(
+                                                      color: Colors.grey.shade100,
+                                                      child: photoUrl != null
+                                                          ? Image.network(
+                                                              photoUrl,
+                                                              fit: BoxFit.cover,
+                                                              errorBuilder: (context, err, stack) {
+                                                                return const Center(
+                                                                  child: Icon(Icons.broken_image_rounded, color: Colors.grey, size: 40),
+                                                                );
+                                                              },
+                                                            )
+                                                          : const Center(
+                                                              child: Icon(Icons.image_not_supported_rounded, color: Colors.grey, size: 40),
+                                                            ),
+                                                    ),
                                                   ),
                                                 ),
                                                 Padding(
@@ -832,15 +1073,24 @@ class _PosDashboardState extends State<PosDashboard> {
                   ),
                 ],
               ),
-              if (_cart.isNotEmpty)
-                TextButton.icon(
-                  onPressed: () {
-                    _clearCart();
-                    if (isMobileModal) Navigator.pop(context);
-                  },
-                  icon: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent, size: 20),
-                  label: const Text('Limpiar', style: TextStyle(color: Colors.redAccent)),
-                )
+              Row(
+                children: [
+                  if (_cart.isNotEmpty)
+                    TextButton.icon(
+                      onPressed: () {
+                        _clearCart();
+                        if (isMobileModal) Navigator.pop(context);
+                      },
+                      icon: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent, size: 20),
+                      label: const Text('Limpiar', style: TextStyle(color: Colors.redAccent)),
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF1E3C72)),
+                    tooltip: 'Escanear Código de Barras',
+                    onPressed: () => _scanBarcode(onScanSuccess: onCartChanged),
+                  ),
+                ],
+              )
             ],
           ),
         ),
@@ -993,6 +1243,151 @@ class _PosDashboardState extends State<PosDashboard> {
           ),
         )
       ],
+    );
+  }
+}
+
+class BarcodeScannerDialog extends StatefulWidget {
+  final Function(String) onScan;
+  const BarcodeScannerDialog({required this.onScan, super.key});
+
+  @override
+  State<BarcodeScannerDialog> createState() => _BarcodeScannerDialogState();
+}
+
+class _BarcodeScannerDialogState extends State<BarcodeScannerDialog> {
+  final TextEditingController _inputController = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+
+  bool get _useCamera => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+  @override
+  void dispose() {
+    _inputController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _submitCode() {
+    final code = _inputController.text.trim();
+    if (code.isNotEmpty) {
+      widget.onScan(code);
+      Navigator.of(context).pop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: const [
+                      Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF1E3C72), size: 28),
+                      SizedBox(width: 8),
+                      Text(
+                        'Escanear Código',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E3C72)),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.of(context).pop(),
+                  )
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (_useCamera)
+                Container(
+                  height: 250,
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: MobileScanner(
+                    onDetect: (capture) {
+                      final List<Barcode> barcodes = capture.barcodes;
+                      for (final barcode in barcodes) {
+                        final String? code = barcode.rawValue;
+                        if (code != null && code.isNotEmpty) {
+                          widget.onScan(code);
+                          Navigator.of(context).pop();
+                          break;
+                        }
+                      }
+                    },
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue.shade100),
+                  ),
+                  child: Column(
+                    children: const [
+                      Icon(Icons.desktop_windows_rounded, size: 40, color: Color(0xFF1E3C72)),
+                      SizedBox(height: 8),
+                      Text(
+                        'Modo Simulación de Escritorio',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3C72)),
+                        textAlign: TextAlign.center,
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'El lector de cámara física está optimizado para dispositivos móviles. En Windows, puedes ingresar el código manualmente o usar una lectora física USB.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _inputController,
+                focusNode: _focusNode,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'Ingresar código de barras',
+                  hintText: 'Ej: 779123456789',
+                  prefixIcon: const Icon(Icons.keyboard_rounded),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.arrow_forward_rounded, color: Color(0xFF1E3C72)),
+                    onPressed: _submitCode,
+                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onSubmitted: (_) => _submitCode(),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: _submitCode,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1E3C72),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: const Text('Confirmar', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

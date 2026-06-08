@@ -1,8 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="frontend"
+        android:label="MarySold"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/launcher_icon">
         <!-- Desactiva Impeller para evitar crashes gráficos por controladores de Vulkan en GPUs MediaTek/Mali -->
         <meta-data
             android:name="io.flutter.embedding.android.EnableImpeller"

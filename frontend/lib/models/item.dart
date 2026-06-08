@@ -7,6 +7,7 @@ class Item {
   final int quantity;
   final String type;
   final String? photoUrl;
+  final String? barcode;
 
   Item({
     required this.id,
@@ -15,6 +16,7 @@ class Item {
     required this.quantity,
     required this.type,
     this.photoUrl,
+    this.barcode,
   });
 
   factory Item.fromJson(Map<String, dynamic> json) {
@@ -25,6 +27,7 @@ class Item {
       quantity: json['quantity'] as int,
       type: (json['type'] as String?) ?? 'Otros',
       photoUrl: json['photo_url'] as String?,
+      barcode: json['barcode'] as String?,
     );
   }
 
@@ -36,6 +39,7 @@ class Item {
       'quantity': quantity,
       'type': type,
       'photo_url': photoUrl,
+      'barcode': barcode,
     };
   }
 

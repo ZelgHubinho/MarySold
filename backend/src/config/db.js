@@ -15,4 +15,9 @@ pool.on('error', (err) => {
   console.error('Unexpected error on idle database client', err);
 });
 
+// Run database migrations on start to ensure barcode column exists
+pool.query('ALTER TABLE items ADD COLUMN IF NOT EXISTS barcode VARCHAR(100) UNIQUE;')
+  .then(() => console.log('Database migration verified: barcode column is present.'))
+  .catch((err) => console.error('Error verifying database migration for barcode column:', err));
+
 export default pool;

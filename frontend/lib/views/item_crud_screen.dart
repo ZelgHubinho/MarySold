@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:barcode_widget/barcode_widget.dart';
 import '../controllers/item_controller.dart';
 import '../models/item.dart';
 import '../models/user.dart';
@@ -430,6 +432,7 @@ class _ItemCrudScreenState extends State<ItemCrudScreen> {
                                           DataColumn(label: Text('Tipo')),
                                           DataColumn(label: Text('Precio')),
                                           DataColumn(label: Text('Cantidad')),
+                                          DataColumn(label: Text('Código de Barras')),
                                           DataColumn(label: Text('Acciones')),
                                         ],
                                         rows: filteredItems.map((item) {
@@ -458,6 +461,7 @@ class _ItemCrudScreenState extends State<ItemCrudScreen> {
                                               DataCell(Text(item.type)),
                                               DataCell(Text('\$${item.price.toStringAsFixed(2)}')),
                                               DataCell(Text('${item.quantity}')),
+                                              DataCell(Text(item.barcode ?? '-')),
                                               DataCell(
                                                 Row(
                                                   children: [
@@ -523,7 +527,7 @@ class _ItemCrudScreenState extends State<ItemCrudScreen> {
                                           : const Icon(Icons.image_rounded, color: Colors.grey),
                                     ),
                                     title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                    subtitle: Text('Tipo: ${item.type} | Precio: \$${item.price.toStringAsFixed(2)} | Stock: ${item.quantity}'),
+                                    subtitle: Text('Tipo: ${item.type} | Precio: \$${item.price.toStringAsFixed(2)} | Stock: ${item.quantity}\nCódigo: ${item.barcode ?? "-"}'),
                                     trailing: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
@@ -571,6 +575,7 @@ class _ItemFormDialogState extends State<_ItemFormDialog> {
   late TextEditingController _nameController;
   late TextEditingController _priceController;
   late TextEditingController _quantityController;
+  late TextEditingController _barcodeController;
   XFile? _selectedImage;
   bool _isSaving = false;
 
@@ -591,6 +596,7 @@ class _ItemFormDialogState extends State<_ItemFormDialog> {
     _nameController = TextEditingController(text: widget.item?.name ?? '');
     _priceController = TextEditingController(text: widget.item?.price.toString() ?? '');
     _quantityController = TextEditingController(text: widget.item?.quantity.toString() ?? '');
+    _barcodeController = TextEditingController(text: widget.item?.barcode ?? '');
     _selectedType = widget.item?.type ?? 'Otros';
     if (!_categories.contains(_selectedType)) {
       _selectedType = 'Otros';
@@ -602,7 +608,17 @@ class _ItemFormDialogState extends State<_ItemFormDialog> {
     _nameController.dispose();
     _priceController.dispose();
     _quantityController.dispose();
+    _barcodeController.dispose();
     super.dispose();
+  }
+
+  void _generateBarcode() {
+    final rand = math.Random();
+    // Generate 9 digit random number
+    final num = 100000000 + rand.nextInt(900000000);
+    setState(() {
+      _barcodeController.text = '779$num';
+    });
   }
 
   Future<void> _pickImage() async {
@@ -631,6 +647,7 @@ class _ItemFormDialogState extends State<_ItemFormDialog> {
     final name = _nameController.text.trim();
     final price = double.parse(_priceController.text);
     final quantity = int.parse(_quantityController.text);
+    final barcode = _barcodeController.text.trim().isEmpty ? null : _barcodeController.text.trim();
 
     bool success;
     if (widget.item == null) {
@@ -641,6 +658,7 @@ class _ItemFormDialogState extends State<_ItemFormDialog> {
         quantity: quantity,
         type: _selectedType,
         photoPath: _selectedImage?.path,
+        barcode: barcode,
       );
     } else {
       // Edit existing item
@@ -651,6 +669,7 @@ class _ItemFormDialogState extends State<_ItemFormDialog> {
         quantity: quantity,
         type: _selectedType,
         photoPath: _selectedImage?.path,
+        barcode: barcode,
       );
     }
 
@@ -782,6 +801,58 @@ class _ItemFormDialogState extends State<_ItemFormDialog> {
                   }
                 },
               ),
+              const SizedBox(height: 16),
+              // Barcode field
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _barcodeController,
+                      decoration: InputDecoration(
+                        labelText: 'Código de Barras',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        prefixIcon: const Icon(Icons.qr_code_scanner_rounded),
+                        hintText: 'Autogenerado si se deja vacío',
+                      ),
+                      onChanged: (val) {
+                        setState(() {});
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _generateBarcode,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade50,
+                      foregroundColor: const Color(0xFF1E3C72),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('Generar'),
+                  ),
+                ],
+              ),
+              if (_barcodeController.text.trim().isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: BarcodeWidget(
+                      barcode: Barcode.code128(),
+                      data: _barcodeController.text.trim(),
+                      width: 200,
+                      height: 80,
+                      drawText: true,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

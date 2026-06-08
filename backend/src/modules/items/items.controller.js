@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { getAllItems, getItemById, createItem, updateItem, deleteItem, getItemsPaginated, getItemsCount } from './items.model.js';
+import { getAllItems, getItemById, getItemByBarcode, createItem, updateItem, deleteItem, getItemsPaginated, getItemsCount } from './items.model.js';
 import { logAction } from '../../middleware/auditLogger.js';
 import pool from '../../config/db.js';
 
@@ -45,7 +45,7 @@ export const getItem = async (req, res) => {
 };
 
 export const create = async (req, res) => {
-  const { name, price, quantity, type } = req.body;
+  const { name, price, quantity, type, barcode } = req.body;
 
   if (!name || price === undefined || quantity === undefined) {
     if (req.file) {
@@ -70,7 +70,7 @@ export const create = async (req, res) => {
   const photoUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
   try {
-    const newItem = await createItem(name, parsedPrice, parsedQuantity, type || 'Otros', photoUrl);
+    const newItem = await createItem(name, parsedPrice, parsedQuantity, type || 'Otros', photoUrl, barcode);
 
     // Audit log
     await logAction(
@@ -92,7 +92,7 @@ export const create = async (req, res) => {
 
 export const update = async (req, res) => {
   const { id } = req.params;
-  const { name, price, quantity, type } = req.body;
+  const { name, price, quantity, type, barcode } = req.body;
 
   try {
     const item = await getItemById(id);
@@ -135,7 +135,8 @@ export const update = async (req, res) => {
       parsedPrice,
       parsedQuantity,
       type !== undefined ? type : item.type,
-      photoUrl
+      photoUrl,
+      barcode !== undefined ? barcode : item.barcode
     );
 
     // Audit log
@@ -267,5 +268,19 @@ export const checkout = async (req, res) => {
     return res.status(400).json({ error: err.message || 'Error al procesar la venta.' });
   } finally {
     client.release();
+  }
+};
+
+export const getByBarcode = async (req, res) => {
+  const { barcode } = req.params;
+  try {
+    const item = await getItemByBarcode(barcode);
+    if (!item) {
+      return res.status(404).json({ error: 'Artículo no encontrado con este código de barras.' });
+    }
+    return res.status(200).json(item);
+  } catch (err) {
+    console.error('Error fetching item by barcode:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
   }
 };
