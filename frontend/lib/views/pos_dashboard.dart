@@ -50,11 +50,15 @@ class _PosDashboardState extends State<PosDashboard> {
   }
 
   void _addToCart(Item item) {
-    if (item.quantity <= 0) return;
+    final latestItem = _itemController.items.firstWhere(
+      (i) => i.id == item.id,
+      orElse: () => item,
+    );
+    final cartQty = _cart[latestItem] ?? 0;
+    if (latestItem.quantity - cartQty <= 0) return;
     setState(() {
-      final currentQty = _cart[item] ?? 0;
-      if (currentQty < item.quantity) {
-        _cart[item] = currentQty + 1;
+      if (cartQty < latestItem.quantity) {
+        _cart[latestItem] = cartQty + 1;
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -68,12 +72,16 @@ class _PosDashboardState extends State<PosDashboard> {
   }
 
   void _removeFromCart(Item item) {
+    final latestItem = _itemController.items.firstWhere(
+      (i) => i.id == item.id,
+      orElse: () => item,
+    );
     setState(() {
-      final currentQty = _cart[item] ?? 0;
+      final currentQty = _cart[latestItem] ?? 0;
       if (currentQty <= 1) {
-        _cart.remove(item);
+        _cart.remove(latestItem);
       } else {
-        _cart[item] = currentQty - 1;
+        _cart[latestItem] = currentQty - 1;
       }
     });
   }
@@ -106,6 +114,7 @@ class _PosDashboardState extends State<PosDashboard> {
     }
 
     if (success) {
+      _itemController.fetchItems();
       _clearCart();
 
       if (mounted) {
@@ -615,7 +624,9 @@ class _PosDashboardState extends State<PosDashboard> {
                                         itemCount: filteredItems.length,
                                         itemBuilder: (context, idx) {
                                           final item = filteredItems[idx];
-                                          final isOutOfStock = item.quantity <= 0;
+                                          final cartQty = _cart[item] ?? 0;
+                                          final remainingStock = item.quantity - cartQty;
+                                          final isOutOfStock = remainingStock <= 0;
                                           final photoUrl = item.fullPhotoUrl;
 
                                           return Card(
@@ -673,7 +684,7 @@ class _PosDashboardState extends State<PosDashboard> {
                                                             ),
                                                           ),
                                                           Text(
-                                                            isOutOfStock ? 'Sin stock' : 'Stock: ${item.quantity}',
+                                                            isOutOfStock ? 'Sin stock' : 'Stock: $remainingStock',
                                                             style: TextStyle(
                                                               color: isOutOfStock ? Colors.red : Colors.grey,
                                                               fontSize: _isGridCompact ? 10 : 12,
@@ -888,15 +899,27 @@ class _PosDashboardState extends State<PosDashboard> {
                               '$qty',
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF1E3C72)),
-                              onPressed: () {
-                                _addToCart(item);
-                                if (isMobileModal) {
-                                  (context as Element).markNeedsBuild();
-                                }
-                              },
-                            ),
+                            (() {
+                              final latestItem = _itemController.items.firstWhere(
+                                (i) => i.id == item.id,
+                                orElse: () => item,
+                              );
+                              final canAdd = qty < latestItem.quantity;
+                              return IconButton(
+                                icon: Icon(
+                                  Icons.add_circle_outline_rounded,
+                                  color: canAdd ? const Color(0xFF1E3C72) : Colors.grey.shade400,
+                                ),
+                                onPressed: canAdd
+                                    ? () {
+                                        _addToCart(item);
+                                        if (isMobileModal) {
+                                          (context as Element).markNeedsBuild();
+                                        }
+                                      }
+                                    : null,
+                              );
+                            })(),
                           ],
                         ),
                       ],

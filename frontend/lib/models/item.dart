@@ -49,4 +49,14 @@ class Item {
 
   @override
   String toString() => 'Item(id: $id, name: $name, price: $price, quantity: $quantity, type: $type, photoUrl: $photoUrl)';
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Item &&
+          runtimeType == other.runtimeType &&
+          id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
