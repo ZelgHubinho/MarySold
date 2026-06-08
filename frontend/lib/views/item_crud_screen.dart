@@ -26,6 +26,8 @@ class _ItemCrudScreenState extends State<ItemCrudScreen> {
   String _selectedTypeFilter = 'Todos';
   String _selectedStockFilter = 'Todos';
   bool _showFilters = false;
+  final ScrollController _desktopScrollController = ScrollController();
+  final ScrollController _mobileScrollController = ScrollController();
 
   @override
   void initState() {
@@ -41,6 +43,33 @@ class _ItemCrudScreenState extends State<ItemCrudScreen> {
           ),
         );
       });
+    } else {
+      // Load items with pagination after build completes to avoid notifying listeners during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          widget.itemController.fetchItems(isRefresh: true, paginate: true);
+        }
+      });
+      _desktopScrollController.addListener(_onScroll);
+      _mobileScrollController.addListener(_onScroll);
+    }
+  }
+
+  @override
+  void dispose() {
+    _desktopScrollController.dispose();
+    _mobileScrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_desktopScrollController.hasClients &&
+        _desktopScrollController.position.pixels >= _desktopScrollController.position.maxScrollExtent - 200) {
+      widget.itemController.fetchItems(isRefresh: false);
+    }
+    if (_mobileScrollController.hasClients &&
+        _mobileScrollController.position.pixels >= _mobileScrollController.position.maxScrollExtent - 200) {
+      widget.itemController.fetchItems(isRefresh: false);
     }
   }
 
@@ -140,7 +169,7 @@ class _ItemCrudScreenState extends State<ItemCrudScreen> {
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Actualizar',
-            onPressed: () => widget.itemController.fetchItems(),
+            onPressed: () => widget.itemController.fetchItems(isRefresh: true, paginate: true),
           ),
           const SizedBox(width: 12),
         ],
@@ -388,68 +417,89 @@ class _ItemCrudScreenState extends State<ItemCrudScreen> {
                               elevation: 2,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                               child: SingleChildScrollView(
+                                controller: _desktopScrollController,
                                 scrollDirection: Axis.vertical,
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: DataTable(
-                                    columns: const [
-                                      DataColumn(label: Text('Foto')),
-                                      DataColumn(label: Text('Nombre')),
-                                      DataColumn(label: Text('Tipo')),
-                                      DataColumn(label: Text('Precio')),
-                                      DataColumn(label: Text('Cantidad')),
-                                      DataColumn(label: Text('Acciones')),
-                                    ],
-                                    rows: filteredItems.map((item) {
-                                      return DataRow(
-                                        cells: [
-                                          DataCell(
-                                            Container(
-                                              width: 40,
-                                              height: 40,
-                                              margin: const EdgeInsets.symmetric(vertical: 4),
-                                              decoration: BoxDecoration(
-                                                color: Colors.grey.shade200,
-                                                borderRadius: BorderRadius.circular(6),
-                                              ),
-                                              clipBehavior: Clip.antiAlias,
-                                              child: item.fullPhotoUrl != null
-                                                  ? Image.network(
-                                                      item.fullPhotoUrl!,
-                                                      fit: BoxFit.cover,
-                                                      errorBuilder: (context, err, stack) => const Icon(Icons.broken_image_rounded, size: 20, color: Colors.grey),
-                                                    )
-                                                  : const Icon(Icons.image_rounded, size: 20, color: Colors.grey),
-                                            ),
-                                          ),
-                                          DataCell(Text(item.name, style: const TextStyle(fontWeight: FontWeight.w600))),
-                                          DataCell(Text(item.type)),
-                                          DataCell(Text('\$${item.price.toStringAsFixed(2)}')),
-                                          DataCell(Text('${item.quantity}')),
-                                          DataCell(
-                                            Row(
-                                              children: [
-                                                IconButton(
-                                                  icon: const Icon(Icons.edit_outlined, color: Colors.blue),
-                                                  onPressed: () => _showItemForm(item: item),
-                                                ),
-                                                IconButton(
-                                                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                                                  onPressed: () => _confirmDelete(item),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
+                                child: Column(
+                                  children: [
+                                    SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: DataTable(
+                                        columns: const [
+                                          DataColumn(label: Text('Foto')),
+                                          DataColumn(label: Text('Nombre')),
+                                          DataColumn(label: Text('Tipo')),
+                                          DataColumn(label: Text('Precio')),
+                                          DataColumn(label: Text('Cantidad')),
+                                          DataColumn(label: Text('Acciones')),
                                         ],
-                                      );
-                                    }).toList(),
-                                  ),
+                                        rows: filteredItems.map((item) {
+                                          return DataRow(
+                                            cells: [
+                                              DataCell(
+                                                Container(
+                                                  width: 40,
+                                                  height: 40,
+                                                  margin: const EdgeInsets.symmetric(vertical: 4),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.grey.shade200,
+                                                    borderRadius: BorderRadius.circular(6),
+                                                  ),
+                                                  clipBehavior: Clip.antiAlias,
+                                                  child: item.fullPhotoUrl != null
+                                                      ? Image.network(
+                                                          item.fullPhotoUrl!,
+                                                          fit: BoxFit.cover,
+                                                          errorBuilder: (context, err, stack) => const Icon(Icons.broken_image_rounded, size: 20, color: Colors.grey),
+                                                        )
+                                                      : const Icon(Icons.image_rounded, size: 20, color: Colors.grey),
+                                                ),
+                                              ),
+                                              DataCell(Text(item.name, style: const TextStyle(fontWeight: FontWeight.w600))),
+                                              DataCell(Text(item.type)),
+                                              DataCell(Text('\$${item.price.toStringAsFixed(2)}')),
+                                              DataCell(Text('${item.quantity}')),
+                                              DataCell(
+                                                Row(
+                                                  children: [
+                                                    IconButton(
+                                                      icon: const Icon(Icons.edit_outlined, color: Colors.blue),
+                                                      onPressed: () => _showItemForm(item: item),
+                                                    ),
+                                                    IconButton(
+                                                      icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                                                      onPressed: () => _confirmDelete(item),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        }).toList(),
+                                      ),
+                                    ),
+                                    if (widget.itemController.isLoadingMore)
+                                      const Padding(
+                                        padding: EdgeInsets.all(16.0),
+                                        child: Center(
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
                             )
                           : ListView.builder(
-                              itemCount: filteredItems.length,
+                              controller: _mobileScrollController,
+                              itemCount: filteredItems.length + (widget.itemController.isLoadingMore ? 1 : 0),
                               itemBuilder: (context, idx) {
+                                if (idx == filteredItems.length) {
+                                  return const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.all(16.0),
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    ),
+                                  );
+                                }
                                 final item = filteredItems[idx];
                                 return Card(
                                   elevation: 2,

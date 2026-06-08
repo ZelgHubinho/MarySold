@@ -30,3 +30,16 @@ export const deleteItem = async (id) => {
   const result = await pool.query('DELETE FROM items WHERE id = $1 RETURNING *', [id]);
   return result.rows[0];
 };
+
+export const getItemsPaginated = async (limit, offset) => {
+  const result = await pool.query(
+    'SELECT * FROM items ORDER BY id DESC LIMIT $1 OFFSET $2',
+    [limit, offset]
+  );
+  return result.rows;
+};
+
+export const getItemsCount = async () => {
+  const result = await pool.query('SELECT COUNT(*) AS total FROM items');
+  return parseInt(result.rows[0].total, 10);
+};

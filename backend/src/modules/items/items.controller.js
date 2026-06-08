@@ -1,13 +1,29 @@
 import fs from 'fs';
 import path from 'path';
-import { getAllItems, getItemById, createItem, updateItem, deleteItem } from './items.model.js';
+import { getAllItems, getItemById, createItem, updateItem, deleteItem, getItemsPaginated, getItemsCount } from './items.model.js';
 import { logAction } from '../../middleware/auditLogger.js';
 import pool from '../../config/db.js';
 
 export const getItems = async (req, res) => {
   try {
-    const items = await getAllItems();
-    return res.status(200).json(items);
+    const page = parseInt(req.query.page);
+    const limit = parseInt(req.query.limit);
+
+    if (!isNaN(page) && !isNaN(limit) && page > 0 && limit > 0) {
+      const offset = (page - 1) * limit;
+      const items = await getItemsPaginated(limit, offset);
+      const totalItems = await getItemsCount();
+      return res.status(200).json({
+        items,
+        totalItems,
+        page,
+        limit,
+        totalPages: Math.ceil(totalItems / limit)
+      });
+    } else {
+      const items = await getAllItems();
+      return res.status(200).json(items);
+    }
   } catch (err) {
     console.error('Error fetching items:', err);
     return res.status(500).json({ error: 'Internal server error.' });

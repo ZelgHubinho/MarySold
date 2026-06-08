@@ -8,21 +8,69 @@ class ItemController extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
+  int _currentPage = 1;
+  bool _hasMore = true;
+  bool _isLoadingMore = false;
+  final int _limit = 12;
+  bool _isPaginatedMode = true;
+
   List<Item> get items => _items;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  int get currentPage => _currentPage;
+  bool get hasMore => _hasMore;
+  bool get isLoadingMore => _isLoadingMore;
+  bool get isPaginatedMode => _isPaginatedMode;
 
   final ApiClient _apiClient = ApiClient.instance;
 
-  Future<void> fetchItems() async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
+  Future<void> fetchItems({bool isRefresh = true, bool? paginate}) async {
+    if (paginate != null) {
+      _isPaginatedMode = paginate;
+    }
+
+    if (isRefresh) {
+      _currentPage = 1;
+      _hasMore = true;
+      _isLoading = true;
+      _errorMessage = null;
+      if (_isPaginatedMode) notifyListeners();
+    } else {
+      if (!_isPaginatedMode || !_hasMore || _isLoading || _isLoadingMore) return;
+      _isLoadingMore = true;
+      notifyListeners();
+    }
 
     try {
-      final response = await _apiClient.get('/items');
-      final List<dynamic> data = jsonDecode(response.body);
-      _items = data.map((json) => Item.fromJson(json)).toList();
+      final String url = _isPaginatedMode
+          ? '/items?page=$_currentPage&limit=$_limit'
+          : '/items';
+      final response = await _apiClient.get(url);
+      final decoded = jsonDecode(response.body);
+
+      List<dynamic> itemsList;
+      int total = 0;
+
+      if (decoded is Map<String, dynamic>) {
+        itemsList = decoded['items'] as List<dynamic>;
+        total = decoded['totalItems'] as int;
+      } else {
+        itemsList = decoded as List<dynamic>;
+        total = itemsList.length;
+      }
+
+      final List<Item> newItems = itemsList.map((json) => Item.fromJson(json)).toList();
+
+      if (isRefresh) {
+        _items = newItems;
+      } else {
+        _items.addAll(newItems);
+      }
+
+      _hasMore = _isPaginatedMode && _items.length < total;
+      if (_hasMore) {
+        _currentPage++;
+      }
     } on ApiException catch (e) {
       _errorMessage = e.message;
     } catch (e) {
@@ -30,6 +78,7 @@ class ItemController extends ChangeNotifier {
       debugPrint('Error fetching items: $e');
     } finally {
       _isLoading = false;
+      _isLoadingMore = false;
       notifyListeners();
     }
   }

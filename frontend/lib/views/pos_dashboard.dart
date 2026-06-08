@@ -24,11 +24,13 @@ class _PosDashboardState extends State<PosDashboard> {
   String _selectedStockFilter = 'Todos';
   bool _isGridCompact = true;
   bool _showFilters = false;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _itemController.fetchItems();
+    _itemController.fetchItems(isRefresh: true, paginate: true);
+    _scrollController.addListener(_onScroll);
     _searchFocusNode.addListener(() {
       setState(() {});
     });
@@ -38,7 +40,14 @@ class _PosDashboardState extends State<PosDashboard> {
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      _itemController.fetchItems(isRefresh: false);
+    }
   }
 
   double get _totalPrice {
@@ -114,7 +123,7 @@ class _PosDashboardState extends State<PosDashboard> {
     }
 
     if (success) {
-      _itemController.fetchItems();
+      _itemController.fetchItems(paginate: true);
       _clearCart();
 
       if (mounted) {
@@ -197,7 +206,7 @@ class _PosDashboardState extends State<PosDashboard> {
                       onPressed: () {
                         Navigator.of(context).pop();
                         // Refetch items to update display stock
-                        _itemController.fetchItems();
+                        _itemController.fetchItems(paginate: true);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF1E3C72),
@@ -227,7 +236,7 @@ class _PosDashboardState extends State<PosDashboard> {
                 ElevatedButton(
                   onPressed: () {
                     Navigator.of(context).pop();
-                    _itemController.fetchItems(); // Sync items in case stock changed
+                    _itemController.fetchItems(paginate: true); // Sync items in case stock changed
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1E3C72),
@@ -411,7 +420,7 @@ class _PosDashboardState extends State<PosDashboard> {
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                     ),
                                     tooltip: 'Actualizar Catálogo',
-                                    onPressed: () => _itemController.fetchItems(),
+                                    onPressed: () => _itemController.fetchItems(paginate: true),
                                   ),
                                   const SizedBox(width: 12),
                                   IconButton(
@@ -613,6 +622,7 @@ class _PosDashboardState extends State<PosDashboard> {
                                         ),
                                       )
                                     : GridView.builder(
+                                        controller: _scrollController,
                                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                           crossAxisCount: isDesktop 
                                               ? (_isGridCompact ? 5 : 3) 
@@ -621,8 +631,19 @@ class _PosDashboardState extends State<PosDashboard> {
                                           mainAxisSpacing: _isGridCompact ? 10 : 16,
                                           childAspectRatio: _isGridCompact ? 0.70 : 0.78,
                                         ),
-                                        itemCount: filteredItems.length,
+                                        itemCount: filteredItems.length + (_itemController.isLoadingMore ? 1 : 0),
                                         itemBuilder: (context, idx) {
+                                          if (idx == filteredItems.length) {
+                                            return const Card(
+                                              elevation: 1,
+                                              child: Center(
+                                                child: Padding(
+                                                  padding: EdgeInsets.all(16.0),
+                                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                                ),
+                                              ),
+                                            );
+                                          }
                                           final item = filteredItems[idx];
                                           final cartQty = _cart[item] ?? 0;
                                           final remainingStock = item.quantity - cartQty;
