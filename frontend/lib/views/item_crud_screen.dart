@@ -27,6 +27,8 @@ class _ItemCrudScreenState extends State<ItemCrudScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   String _selectedTypeFilter = 'Todos';
   String _selectedStockFilter = 'Todos';
+  String _selectedSizeFilter = 'Todos';
+  String _selectedGenderFilter = 'Todos';
   bool _showFilters = false;
   final ScrollController _desktopScrollController = ScrollController();
   final ScrollController _mobileScrollController = ScrollController();
@@ -223,6 +225,12 @@ class _ItemCrudScreenState extends State<ItemCrudScreen> {
               filteredItems = filteredItems.where((item) => item.quantity < 5).toList();
             }
           }
+          if (_selectedSizeFilter != 'Todos') {
+            filteredItems = filteredItems.where((item) => item.variants.any((v) => v.size == _selectedSizeFilter)).toList();
+          }
+          if (_selectedGenderFilter != 'Todos') {
+            filteredItems = filteredItems.where((item) => item.gender == _selectedGenderFilter).toList();
+          }
 
           return Padding(
             padding: const EdgeInsets.all(16.0),
@@ -270,50 +278,102 @@ class _ItemCrudScreenState extends State<ItemCrudScreen> {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 isDesktop
-                                    ? Row(
+                                    ? Column(
                                         children: [
-                                          Expanded(
-                                            child: DropdownButtonFormField<String>(
-                                              value: _selectedTypeFilter,
-                                              decoration: InputDecoration(
-                                                labelText: 'Tipo de Prenda',
-                                                prefixIcon: const Icon(Icons.category_outlined, color: Color(0xFF1E3C72)),
-                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: DropdownButtonFormField<String>(
+                                                  value: _selectedTypeFilter,
+                                                  decoration: InputDecoration(
+                                                    labelText: 'Tipo de Prenda',
+                                                    prefixIcon: const Icon(Icons.category_outlined, color: Color(0xFF1E3C72)),
+                                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                                  ),
+                                                  items: ['Todos', 'Camisa', 'Pantalón', 'Vestido', 'Abrigo', 'Calzado', 'Accesorios', 'Otros'].map((cat) {
+                                                    return DropdownMenuItem(value: cat, child: Text(cat));
+                                                  }).toList(),
+                                                  onChanged: (val) {
+                                                    if (val != null) {
+                                                      setState(() {
+                                                        _selectedTypeFilter = val;
+                                                      });
+                                                    }
+                                                  },
+                                                ),
                                               ),
-                                              items: ['Todos', 'Camisa', 'Pantalón', 'Vestido', 'Abrigo', 'Calzado', 'Accesorios', 'Otros'].map((cat) {
-                                                return DropdownMenuItem(value: cat, child: Text(cat));
-                                              }).toList(),
-                                              onChanged: (val) {
-                                                if (val != null) {
-                                                  setState(() {
-                                                    _selectedTypeFilter = val;
-                                                  });
-                                                }
-                                              },
-                                            ),
+                                              const SizedBox(width: 16),
+                                              Expanded(
+                                                child: DropdownButtonFormField<String>(
+                                                  value: _selectedStockFilter,
+                                                  decoration: InputDecoration(
+                                                    labelText: 'Nivel de Stock',
+                                                    prefixIcon: const Icon(Icons.inventory_outlined, color: Color(0xFF1E3C72)),
+                                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                                  ),
+                                                  items: ['Todos', 'Disponible', 'Sin stock', 'Bajo stock (< 5)'].map((stk) {
+                                                    return DropdownMenuItem(value: stk, child: Text(stk));
+                                                  }).toList(),
+                                                  onChanged: (val) {
+                                                    if (val != null) {
+                                                      setState(() {
+                                                        _selectedStockFilter = val;
+                                                      });
+                                                    }
+                                                  },
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                          const SizedBox(width: 16),
-                                          Expanded(
-                                            child: DropdownButtonFormField<String>(
-                                              value: _selectedStockFilter,
-                                              decoration: InputDecoration(
-                                                labelText: 'Nivel de Stock',
-                                                prefixIcon: const Icon(Icons.inventory_outlined, color: Color(0xFF1E3C72)),
-                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                          const SizedBox(height: 12),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: DropdownButtonFormField<String>(
+                                                  value: _selectedSizeFilter,
+                                                  decoration: InputDecoration(
+                                                    labelText: 'Talla',
+                                                    prefixIcon: const Icon(Icons.straighten_rounded, color: Color(0xFF1E3C72)),
+                                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                                  ),
+                                                  items: ['Todos', 'Única', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '36', '38', '40', '42', '44'].map((sz) {
+                                                    return DropdownMenuItem(value: sz, child: Text(sz));
+                                                  }).toList(),
+                                                  onChanged: (val) {
+                                                    if (val != null) {
+                                                      setState(() {
+                                                        _selectedSizeFilter = val;
+                                                      });
+                                                    }
+                                                  },
+                                                ),
                                               ),
-                                              items: ['Todos', 'Disponible', 'Sin stock', 'Bajo stock (< 5)'].map((stk) {
-                                                return DropdownMenuItem(value: stk, child: Text(stk));
-                                              }).toList(),
-                                              onChanged: (val) {
-                                                if (val != null) {
-                                                  setState(() {
-                                                    _selectedStockFilter = val;
-                                                  });
-                                                }
-                                              },
-                                            ),
+                                              const SizedBox(width: 16),
+                                              Expanded(
+                                                child: DropdownButtonFormField<String>(
+                                                  value: _selectedGenderFilter,
+                                                  decoration: InputDecoration(
+                                                    labelText: 'Género',
+                                                    prefixIcon: const Icon(Icons.wc_rounded, color: Color(0xFF1E3C72)),
+                                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                                  ),
+                                                  items: ['Todos', 'Unisex', 'Hombre', 'Mujer', 'Niño', 'Niña'].map((gen) {
+                                                    return DropdownMenuItem(value: gen, child: Text(gen));
+                                                  }).toList(),
+                                                  onChanged: (val) {
+                                                    if (val != null) {
+                                                      setState(() {
+                                                        _selectedGenderFilter = val;
+                                                      });
+                                                    }
+                                                  },
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       )
@@ -358,6 +418,46 @@ class _ItemCrudScreenState extends State<ItemCrudScreen> {
                                               }
                                             },
                                           ),
+                                          const SizedBox(height: 12),
+                                          DropdownButtonFormField<String>(
+                                            value: _selectedSizeFilter,
+                                            decoration: InputDecoration(
+                                              labelText: 'Talla',
+                                              prefixIcon: const Icon(Icons.straighten_rounded, color: Color(0xFF1E3C72)),
+                                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                            ),
+                                            items: ['Todos', 'Única', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '36', '38', '40', '42', '44'].map((sz) {
+                                              return DropdownMenuItem(value: sz, child: Text(sz));
+                                            }).toList(),
+                                            onChanged: (val) {
+                                              if (val != null) {
+                                                setState(() {
+                                                  _selectedSizeFilter = val;
+                                                });
+                                              }
+                                            },
+                                          ),
+                                          const SizedBox(height: 12),
+                                          DropdownButtonFormField<String>(
+                                            value: _selectedGenderFilter,
+                                            decoration: InputDecoration(
+                                              labelText: 'Género',
+                                              prefixIcon: const Icon(Icons.wc_rounded, color: Color(0xFF1E3C72)),
+                                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                            ),
+                                            items: ['Todos', 'Unisex', 'Hombre', 'Mujer', 'Niño', 'Niña'].map((gen) {
+                                              return DropdownMenuItem(value: gen, child: Text(gen));
+                                            }).toList(),
+                                            onChanged: (val) {
+                                              if (val != null) {
+                                                setState(() {
+                                                  _selectedGenderFilter = val;
+                                                });
+                                              }
+                                            },
+                                          ),
                                         ],
                                       ),
                                 const SizedBox(height: 16),
@@ -368,14 +468,16 @@ class _ItemCrudScreenState extends State<ItemCrudScreen> {
                                   child: ExportButtons(
                                     title: 'Reporte de Inventario de Ropa',
                                     defaultFileName: 'reporte_inventario_${DateTime.now().toString().substring(0, 10)}',
-                                    headers: const ['ID', 'Nombre', 'Tipo', 'Precio', 'Stock'],
+                                    headers: const ['ID', 'Nombre', 'Tipo', 'Talla (Stock)', 'Género', 'Precio', 'Stock Total'],
                                     onFetchData: () {
                                       return filteredItems.map((item) {
                                         return [
                                           item.id.toString(),
                                           item.name,
                                           item.type,
-                                          '\$${item.price.toStringAsFixed(2)}',
+                                          item.variants.map((v) => '${v.size} (${v.quantity})').join(', '),
+                                          item.gender,
+                                          item.formattedPriceRange,
                                           item.quantity.toString(),
                                         ];
                                       }).toList();
@@ -407,6 +509,8 @@ class _ItemCrudScreenState extends State<ItemCrudScreen> {
                                   setState(() {
                                     _selectedTypeFilter = 'Todos';
                                     _selectedStockFilter = 'Todos';
+                                    _selectedSizeFilter = 'Todos';
+                                    _selectedGenderFilter = 'Todos';
                                   });
                                 },
                                 child: const Text('Limpiar Filtros', style: TextStyle(color: Color(0xFF1E3C72))),
@@ -430,6 +534,8 @@ class _ItemCrudScreenState extends State<ItemCrudScreen> {
                                           DataColumn(label: Text('Foto')),
                                           DataColumn(label: Text('Nombre')),
                                           DataColumn(label: Text('Tipo')),
+                                          DataColumn(label: Text('Talla')),
+                                          DataColumn(label: Text('Género')),
                                           DataColumn(label: Text('Precio')),
                                           DataColumn(label: Text('Cantidad')),
                                           DataColumn(label: Text('Código de Barras')),
@@ -457,11 +563,46 @@ class _ItemCrudScreenState extends State<ItemCrudScreen> {
                                                       : const Icon(Icons.image_rounded, size: 20, color: Colors.grey),
                                                 ),
                                               ),
-                                              DataCell(Text(item.name, style: const TextStyle(fontWeight: FontWeight.w600))),
+                                              DataCell(
+                                                Container(
+                                                  constraints: const BoxConstraints(maxWidth: 150),
+                                                  child: Text(
+                                                    item.name,
+                                                    style: const TextStyle(fontWeight: FontWeight.w600),
+                                                    overflow: TextOverflow.ellipsis,
+                                                    maxLines: 1,
+                                                  ),
+                                                ),
+                                              ),
                                               DataCell(Text(item.type)),
-                                              DataCell(Text('\$${item.price.toStringAsFixed(2)}')),
+                                              DataCell(
+                                                Container(
+                                                  constraints: const BoxConstraints(maxWidth: 120),
+                                                  child: Text(
+                                                    item.variants.map((v) => '${v.size} (${v.quantity})').join(', '),
+                                                    style: const TextStyle(fontSize: 12),
+                                                    overflow: TextOverflow.ellipsis,
+                                                    maxLines: 1,
+                                                  ),
+                                                ),
+                                              ),
+                                              DataCell(Text(item.gender)),
+                                              DataCell(Text(item.formattedPriceRange)),
                                               DataCell(Text('${item.quantity}')),
-                                              DataCell(Text(item.barcode ?? '-')),
+                                              DataCell(
+                                                Container(
+                                                  constraints: const BoxConstraints(maxWidth: 150),
+                                                  child: Tooltip(
+                                                    message: item.variants.map((v) => '${v.size}: ${v.barcode ?? "-"}').join('\n'),
+                                                    child: Text(
+                                                      item.variants.map((v) => v.barcode ?? '-').join(' / '),
+                                                      overflow: TextOverflow.ellipsis,
+                                                      maxLines: 1,
+                                                      style: const TextStyle(fontSize: 12),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
                                               DataCell(
                                                 Row(
                                                   children: [
@@ -526,8 +667,11 @@ class _ItemCrudScreenState extends State<ItemCrudScreen> {
                                             )
                                           : const Icon(Icons.image_rounded, color: Colors.grey),
                                     ),
-                                    title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                    subtitle: Text('Tipo: ${item.type} | Precio: \$${item.price.toStringAsFixed(2)} | Stock: ${item.quantity}\nCódigo: ${item.barcode ?? "-"}'),
+                                    title: Text('${item.name} (${item.gender})', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    subtitle: Text(
+                                      'Tipo: ${item.type} | Precio: ${item.formattedPriceRange} | Stock: ${item.quantity}\n'
+                                      'Tallas: ${item.variants.map((v) => '${v.size} (${v.quantity})').join(', ')}'
+                                    ),
                                     trailing: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
@@ -574,9 +718,9 @@ class _ItemFormDialogState extends State<_ItemFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _priceController;
-  late TextEditingController _quantityController;
-  late TextEditingController _barcodeController;
-  XFile? _selectedImage;
+  final List<XFile> _selectedImages = [];
+  List<String> _existingPhotos = [];
+  bool _isLoadingPhotos = false;
   bool _isSaving = false;
 
   static const List<String> _categories = [
@@ -588,18 +732,69 @@ class _ItemFormDialogState extends State<_ItemFormDialog> {
     'Accesorios',
     'Otros',
   ];
+  static const List<String> _sizes = [
+    'Única', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '36', '38', '40', '42', '44'
+  ];
+  static const List<String> _genders = [
+    'Unisex', 'Hombre', 'Mujer', 'Niño', 'Niña'
+  ];
   late String _selectedType;
+  late String _selectedGender;
+  final List<Map<String, dynamic>> _variants = [];
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.item?.name ?? '');
     _priceController = TextEditingController(text: widget.item?.price.toString() ?? '');
-    _quantityController = TextEditingController(text: widget.item?.quantity.toString() ?? '');
-    _barcodeController = TextEditingController(text: widget.item?.barcode ?? '');
     _selectedType = widget.item?.type ?? 'Otros';
     if (!_categories.contains(_selectedType)) {
       _selectedType = 'Otros';
+    }
+    _selectedGender = widget.item?.gender ?? 'Unisex';
+    if (!_genders.contains(_selectedGender)) {
+      _selectedGender = 'Unisex';
+    }
+
+    if (widget.item != null && widget.item!.variants.isNotEmpty) {
+      for (final v in widget.item!.variants) {
+        _variants.add({
+          'id': v.id,
+          'size': v.size,
+          'quantity': v.quantity,
+          'barcode': v.barcode ?? '',
+          'price': v.price,
+          'qtyController': TextEditingController(text: v.quantity.toString()),
+          'barcodeController': TextEditingController(text: v.barcode ?? ''),
+          'priceController': TextEditingController(text: v.price.toString()),
+        });
+      }
+    } else {
+      _variants.add({
+        'id': null,
+        'size': 'Única',
+        'quantity': 1,
+        'barcode': '',
+        'price': 0.0,
+        'qtyController': TextEditingController(text: '1'),
+        'barcodeController': TextEditingController(text: ''),
+        'priceController': TextEditingController(text: widget.item?.price.toString() ?? ''),
+      });
+    }
+
+    if (widget.item != null) {
+      _isLoadingPhotos = true;
+      widget.itemController.fetchItemPhotos(widget.item!.id).then((photos) {
+        if (mounted) {
+          setState(() {
+            _existingPhotos = [
+              if (widget.item!.fullPhotoUrl != null) widget.item!.fullPhotoUrl!,
+              ...photos,
+            ];
+            _isLoadingPhotos = false;
+          });
+        }
+      });
     }
   }
 
@@ -607,36 +802,240 @@ class _ItemFormDialogState extends State<_ItemFormDialog> {
   void dispose() {
     _nameController.dispose();
     _priceController.dispose();
-    _quantityController.dispose();
-    _barcodeController.dispose();
+    for (final v in _variants) {
+      (v['qtyController'] as TextEditingController).dispose();
+      (v['barcodeController'] as TextEditingController).dispose();
+      (v['priceController'] as TextEditingController).dispose();
+    }
     super.dispose();
   }
 
-  void _generateBarcode() {
-    final rand = math.Random();
-    // Generate 9 digit random number
-    final num = 100000000 + rand.nextInt(900000000);
-    setState(() {
-      _barcodeController.text = '779$num';
-    });
-  }
+  Future<void> _pickImages() async {
+    final currentTotal = _selectedImages.length + _existingPhotos.length;
+    if (currentTotal >= 5) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Se permite un máximo de 5 fotos en total.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
 
-  Future<void> _pickImage() async {
     try {
-      final XFile? image = await widget.imagePicker.pickImage(
-        source: ImageSource.gallery,
+      List<XFile> picked = await widget.imagePicker.pickMultiImage(
         maxWidth: 1024,
         maxHeight: 1024,
         imageQuality: 85,
       );
-      if (image != null) {
+      if (picked.isNotEmpty) {
+        final remainingSlots = 5 - currentTotal;
+        if (picked.length > remainingSlots) {
+          picked = picked.sublist(0, remainingSlots);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Se redujo la selección al límite máximo de 5 fotos.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
         setState(() {
-          _selectedImage = image;
+          _selectedImages.addAll(picked);
         });
       }
     } catch (e) {
-      debugPrint('Error picking image: $e');
+      debugPrint('Error picking images: $e');
     }
+  }
+
+  String _toRelativePath(String fullUrl) {
+    const prefix = '/uploads/';
+    final idx = fullUrl.indexOf(prefix);
+    if (idx != -1) {
+      return fullUrl.substring(idx);
+    }
+    return fullUrl;
+  }
+
+  Widget _buildImageSection() {
+    if (_isLoadingPhotos) {
+      return Container(
+        height: 120,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    final hasImages = _selectedImages.isNotEmpty || _existingPhotos.isNotEmpty;
+
+    if (!hasImages) {
+      return GestureDetector(
+        onTap: _pickImages,
+        child: Container(
+          height: 120,
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Icon(Icons.add_a_photo_rounded, size: 40, color: Colors.grey),
+              SizedBox(height: 8),
+              Text(
+                'Seleccionar Fotos (Máx 5)',
+                style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              ...List.generate(
+                _existingPhotos.length,
+                (index) {
+                  final photoUrl = _existingPhotos[index];
+                  return Container(
+                    width: 90,
+                    height: 100,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: Image.network(
+                            photoUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, err, stack) => const Icon(Icons.broken_image_rounded),
+                          ),
+                        ),
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _existingPhotos.removeAt(index);
+                              });
+                            },
+                            child: Container(
+                              decoration: const BoxDecoration(
+                                color: Colors.black54,
+                                shape: BoxShape.circle,
+                              ),
+                              padding: const EdgeInsets.all(2),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              ...List.generate(
+                _selectedImages.length,
+                (index) {
+                  final localPhoto = _selectedImages[index];
+                  return Container(
+                    width: 90,
+                    height: 100,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: Image.file(
+                            File(localPhoto.path),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedImages.removeAt(index);
+                              });
+                            },
+                            child: Container(
+                              decoration: const BoxDecoration(
+                                color: Colors.black54,
+                                shape: BoxShape.circle,
+                              ),
+                              padding: const EdgeInsets.all(2),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '${_existingPhotos.length + _selectedImages.length} de 5 fotos seleccionadas',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            if (_existingPhotos.length + _selectedImages.length < 5)
+              TextButton.icon(
+                onPressed: _pickImages,
+                icon: const Icon(Icons.add_a_photo_rounded, size: 16),
+                label: const Text('Agregar fotos', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF1E3C72),
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(50, 30),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
   }
 
   Future<void> _save() async {
@@ -645,31 +1044,57 @@ class _ItemFormDialogState extends State<_ItemFormDialog> {
     setState(() => _isSaving = true);
 
     final name = _nameController.text.trim();
-    final price = double.parse(_priceController.text);
-    final quantity = int.parse(_quantityController.text);
-    final barcode = _barcodeController.text.trim().isEmpty ? null : _barcodeController.text.trim();
+    final price = double.tryParse(_priceController.text) ?? 0.0;
+
+    final List<Map<String, dynamic>> variantsToSend = [];
+    for (final v in _variants) {
+      final sizeVal = v['size'] as String;
+      final qtyText = (v['qtyController'] as TextEditingController).text.trim();
+      final qtyVal = int.tryParse(qtyText) ?? 0;
+      final barcodeVal = (v['barcodeController'] as TextEditingController).text.trim();
+      final priceText = (v['priceController'] as TextEditingController).text.trim();
+      final priceVal = double.tryParse(priceText) ?? price;
+
+      variantsToSend.add({
+        if (v['id'] != null) 'id': v['id'],
+        'size': sizeVal,
+        'quantity': qtyVal,
+        'barcode': barcodeVal.isEmpty ? null : barcodeVal,
+        'price': priceVal,
+      });
+    }
+
+    final totalQty = variantsToSend.fold<int>(0, (sum, v) => sum + (v['quantity'] as int));
+
+    final List<String> photoPathsToSend = _selectedImages.map((e) => e.path).toList();
+    final List<String> relativeExistingPhotos = _existingPhotos.map((url) => _toRelativePath(url)).toList();
 
     bool success;
     if (widget.item == null) {
-      // Add new item
       success = await widget.itemController.addItem(
         name: name,
         price: price,
-        quantity: quantity,
+        quantity: totalQty,
         type: _selectedType,
-        photoPath: _selectedImage?.path,
-        barcode: barcode,
+        variants: variantsToSend,
+        photoPaths: photoPathsToSend,
+        barcode: variantsToSend.isNotEmpty ? variantsToSend.first['barcode'] as String? : null,
+        size: variantsToSend.isNotEmpty ? variantsToSend.first['size'] as String : 'Única',
+        gender: _selectedGender,
       );
     } else {
-      // Edit existing item
       success = await widget.itemController.editItem(
         id: widget.item!.id,
         name: name,
         price: price,
-        quantity: quantity,
+        quantity: totalQty,
         type: _selectedType,
-        photoPath: _selectedImage?.path,
-        barcode: barcode,
+        variants: variantsToSend,
+        photoPaths: photoPathsToSend,
+        existingPhotos: relativeExistingPhotos,
+        barcode: variantsToSend.isNotEmpty ? variantsToSend.first['barcode'] as String? : null,
+        size: variantsToSend.isNotEmpty ? variantsToSend.first['size'] as String : 'Única',
+        gender: _selectedGender,
       );
     }
 
@@ -709,34 +1134,7 @@ class _ItemFormDialogState extends State<_ItemFormDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Image Picker Area
-              GestureDetector(
-                onTap: _pickImage,
-                child: Container(
-                  height: 150,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: _selectedImage != null
-                      ? Image.file(File(_selectedImage!.path), fit: BoxFit.cover)
-                          : isEdit && widget.item!.fullPhotoUrl != null
-                              ? Image.network(
-                                  widget.item!.fullPhotoUrl!,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, err, stack) => const Center(child: Icon(Icons.broken_image_rounded, color: Colors.grey, size: 40)),
-                                )
-                          : Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: const [
-                                Icon(Icons.add_a_photo_rounded, size: 40, color: Colors.grey),
-                                SizedBox(height: 8),
-                                Text('Seleccionar Foto', style: TextStyle(color: Colors.grey, fontSize: 13)),
-                              ],
-                            ),
-                ),
-              ),
+              _buildImageSection(),
               const SizedBox(height: 20),
               // Name textfield
               TextFormField(
@@ -764,21 +1162,6 @@ class _ItemFormDialogState extends State<_ItemFormDialog> {
                 },
               ),
               const SizedBox(height: 16),
-              // Quantity textfield
-              TextFormField(
-                controller: _quantityController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Cantidad en Stock',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                validator: (val) {
-                  if (val == null || val.isEmpty) return 'Ingrese la cantidad';
-                  final num = int.tryParse(val);
-                  if (num == null || num < 0) return 'Cantidad inválida';
-                  return null;
-                },
-              ),
               const SizedBox(height: 16),
               // Type dropdown
               DropdownButtonFormField<String>(
@@ -802,57 +1185,219 @@ class _ItemFormDialogState extends State<_ItemFormDialog> {
                 },
               ),
               const SizedBox(height: 16),
-              // Barcode field
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _barcodeController,
-                      decoration: InputDecoration(
-                        labelText: 'Código de Barras',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        prefixIcon: const Icon(Icons.qr_code_scanner_rounded),
-                        hintText: 'Autogenerado si se deja vacío',
-                      ),
-                      onChanged: (val) {
-                        setState(() {});
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: _generateBarcode,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade50,
-                      foregroundColor: const Color(0xFF1E3C72),
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    child: const Text('Generar'),
-                  ),
-                ],
+              // Gender dropdown
+              DropdownButtonFormField<String>(
+                value: _selectedGender,
+                decoration: InputDecoration(
+                  labelText: 'Género de Prenda',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                items: _genders.map((gen) {
+                  return DropdownMenuItem(
+                    value: gen,
+                    child: Text(gen),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() {
+                      _selectedGender = val;
+                    });
+                  }
+                },
               ),
-              if (_barcodeController.text.trim().isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Center(
-                  child: Container(
+              const SizedBox(height: 20),
+              const Text(
+                'Variantes de Talla y Stock',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E3C72)),
+              ),
+              const SizedBox(height: 10),
+              Column(
+                children: List.generate(_variants.length, (idx) {
+                  final v = _variants[idx];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: Colors.grey.shade300),
+                      color: Colors.grey.shade50,
                       borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.grey.shade300),
                     ),
-                    child: BarcodeWidget(
-                      barcode: Barcode.code128(),
-                      data: _barcodeController.text.trim(),
-                      width: 200,
-                      height: 80,
-                      drawText: true,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            // Size dropdown
+                            Expanded(
+                              flex: 2,
+                              child: DropdownButtonFormField<String>(
+                                value: v['size'],
+                                decoration: const InputDecoration(
+                                  labelText: 'Talla',
+                                  border: UnderlineInputBorder(),
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                                items: _sizes.map((sz) {
+                                  return DropdownMenuItem(value: sz, child: Text(sz));
+                                }).toList(),
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setState(() {
+                                      v['size'] = val;
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // Quantity text field
+                            Expanded(
+                              flex: 1,
+                              child: TextFormField(
+                                controller: v['qtyController'],
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  labelText: 'Stock',
+                                  border: UnderlineInputBorder(),
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                                validator: (val) {
+                                  if (val == null || val.isEmpty) return 'Stock';
+                                  final num = int.tryParse(val);
+                                  if (num == null || num < 0) return 'Err';
+                                  return null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // Price text field
+                            Expanded(
+                              flex: 1,
+                              child: TextFormField(
+                                controller: v['priceController'],
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: const InputDecoration(
+                                  labelText: 'Precio',
+                                  border: UnderlineInputBorder(),
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                                validator: (val) {
+                                  if (val == null || val.isEmpty) return 'Precio';
+                                  final num = double.tryParse(val);
+                                  if (num == null || num < 0) return 'Err';
+                                  return null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            if (_variants.length > 1)
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                                onPressed: () {
+                                  setState(() {
+                                    _variants.removeAt(idx);
+                                  });
+                                },
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        // Barcode row
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: v['barcodeController'],
+                                decoration: const InputDecoration(
+                                  labelText: 'Código de Barras',
+                                  border: UnderlineInputBorder(),
+                                  prefixIcon: Icon(Icons.qr_code_scanner_rounded, size: 18),
+                                  hintText: 'Autogenerado si vacío',
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: () {
+                                final rand = math.Random();
+                                final num = 100000000 + rand.nextInt(900000000);
+                                setState(() {
+                                  (v['barcodeController'] as TextEditingController).text = '779$num';
+                                });
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue.shade50,
+                                foregroundColor: const Color(0xFF1E3C72),
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                              ),
+                              child: const Text('Generar', style: TextStyle(fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ),
+                  );
+                }),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _variants.add({
+                      'id': null,
+                      'size': 'Única',
+                      'quantity': 1,
+                      'barcode': '',
+                      'price': 0.0,
+                      'qtyController': TextEditingController(text: '1'),
+                      'barcodeController': TextEditingController(text: ''),
+                      'priceController': TextEditingController(text: _priceController.text.isNotEmpty ? _priceController.text : '0.0'),
+                    });
+                  });
+                },
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Agregar Variante/Talla', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF1E3C72),
+                  side: const BorderSide(color: Color(0xFF1E3C72)),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
                 ),
-              ],
+              ),
+              (() {
+                final firstBarcode = _variants.isNotEmpty
+                    ? (_variants.first['barcodeController'] as TextEditingController).text.trim()
+                    : '';
+                if (firstBarcode.isNotEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 16.0),
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: BarcodeWidget(
+                          barcode: Barcode.code128(),
+                          data: firstBarcode,
+                          width: 200,
+                          height: 80,
+                          drawText: true,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              })(),
             ],
           ),
         ),

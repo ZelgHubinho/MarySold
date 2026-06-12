@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../core/api_client.dart';
+import '../core/constants.dart';
 import '../models/item.dart';
 
 class ItemController extends ChangeNotifier {
@@ -88,8 +89,11 @@ class ItemController extends ChangeNotifier {
     required double price,
     required int quantity,
     required String type,
-    String? photoPath,
+    required List<Map<String, dynamic>> variants,
+    List<String>? photoPaths,
     String? barcode,
+    String? size,
+    String? gender,
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -101,18 +105,33 @@ class ItemController extends ChangeNotifier {
         'price': price.toString(),
         'quantity': quantity.toString(),
         'type': type,
+        'variants': jsonEncode(variants),
       };
       if (barcode != null) {
         fields['barcode'] = barcode;
       }
+      if (size != null) {
+        fields['size'] = size;
+      }
+      if (gender != null) {
+        fields['gender'] = gender;
+      }
 
-      await _apiClient.multipart(
-        'POST',
-        '/items',
-        fields,
-        fileKey: photoPath != null ? 'photo' : null,
-        filePath: photoPath,
-      );
+      if (photoPaths != null && photoPaths.isNotEmpty) {
+        await _apiClient.multipartList(
+          'POST',
+          '/items',
+          fields,
+          'photos',
+          photoPaths,
+        );
+      } else {
+        await _apiClient.multipart(
+          'POST',
+          '/items',
+          fields,
+        );
+      }
 
       // Refresh item list
       await fetchItems();
@@ -136,8 +155,12 @@ class ItemController extends ChangeNotifier {
     required double price,
     required int quantity,
     required String type,
-    String? photoPath,
+    required List<Map<String, dynamic>> variants,
+    List<String>? photoPaths,
+    List<String>? existingPhotos,
     String? barcode,
+    String? size,
+    String? gender,
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -149,18 +172,36 @@ class ItemController extends ChangeNotifier {
         'price': price.toString(),
         'quantity': quantity.toString(),
         'type': type,
+        'variants': jsonEncode(variants),
       };
       if (barcode != null) {
         fields['barcode'] = barcode;
       }
+      if (existingPhotos != null) {
+        fields['existingPhotos'] = jsonEncode(existingPhotos);
+      }
+      if (size != null) {
+        fields['size'] = size;
+      }
+      if (gender != null) {
+        fields['gender'] = gender;
+      }
 
-      await _apiClient.multipart(
-        'PUT',
-        '/items/$id',
-        fields,
-        fileKey: photoPath != null ? 'photo' : null,
-        filePath: photoPath,
-      );
+      if (photoPaths != null && photoPaths.isNotEmpty) {
+        await _apiClient.multipartList(
+          'PUT',
+          '/items/$id',
+          fields,
+          'photos',
+          photoPaths,
+        );
+      } else {
+        await _apiClient.multipart(
+          'PUT',
+          '/items/$id',
+          fields,
+        );
+      }
 
       // Refresh item list
       await fetchItems();
@@ -175,6 +216,24 @@ class ItemController extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       return false;
+    }
+  }
+
+  Future<List<String>> fetchItemPhotos(int itemId) async {
+    try {
+      final response = await _apiClient.get('/items/$itemId/photos');
+      final decoded = jsonDecode(response.body);
+      if (decoded is List) {
+        return decoded.map((photo) {
+          final relativeUrl = photo['photo_url'] as String;
+          if (relativeUrl.startsWith('http')) return relativeUrl;
+          return '${ApiConstants.mediaUrl}$relativeUrl';
+        }).toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching secondary photos: $e');
+      return [];
     }
   }
 
@@ -227,16 +286,17 @@ class ItemController extends ChangeNotifier {
     }
   }
 
-  Future<bool> checkout(Map<Item, int> cart) async {
+  Future<bool> checkout(Map<CartItem, int> cart) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      // Map cart to backend format: { "items": [ { "id": X, "quantity": Y }, ... ] }
+      // Map cart to backend format: { "items": [ { "id": X, "variantId": Z, "quantity": Y }, ... ] }
       final cartData = cart.entries.map((entry) {
         return {
-          'id': entry.key.id,
+          'id': entry.key.item.id,
+          'variantId': entry.key.variant.id,
           'quantity': entry.value,
         };
       }).toList();

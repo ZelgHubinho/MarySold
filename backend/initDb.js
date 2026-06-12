@@ -121,16 +121,68 @@ async function run() {
         quantity INTEGER NOT NULL DEFAULT 0,
         type VARCHAR(50) NOT NULL DEFAULT 'Otros',
         photo_url VARCHAR(255),
-        barcode VARCHAR(100) UNIQUE
+        barcode VARCHAR(100) UNIQUE,
+        size VARCHAR(50) NOT NULL DEFAULT 'Única',
+        gender VARCHAR(50) NOT NULL DEFAULT 'Unisex'
       );
     `);
 
-    // Migrate items table by adding type and barcode columns if they don't exist yet
-    console.log('Migrating items table to add type and barcode columns if needed...');
+    // Create item_photos table
+    console.log('Creating item_photos table if not exists...');
+    await marysoldClient.query(`
+      CREATE TABLE IF NOT EXISTS item_photos (
+        id SERIAL PRIMARY KEY,
+        item_id INTEGER REFERENCES items(id) ON DELETE CASCADE,
+        photo_url VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Create item_variants table
+    console.log('Creating item_variants table if not exists...');
+    await marysoldClient.query(`
+      CREATE TABLE IF NOT EXISTS item_variants (
+        id SERIAL PRIMARY KEY,
+        item_id INTEGER REFERENCES items(id) ON DELETE CASCADE,
+        size VARCHAR(50) NOT NULL DEFAULT 'Única',
+        quantity INTEGER NOT NULL DEFAULT 0,
+        price NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+        barcode VARCHAR(100) UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    console.log('Creating item_variants indexes if they do not exist...');
+    await marysoldClient.query('CREATE INDEX IF NOT EXISTS idx_item_variants_item_id ON item_variants (item_id);');
+    await marysoldClient.query('CREATE INDEX IF NOT EXISTS idx_item_variants_barcode ON item_variants (barcode);');
+
+    // Migrate items table by adding type, barcode, size and gender columns if they don't exist yet
+    console.log('Migrating items table to add needed columns if needed...');
     await marysoldClient.query(`
       ALTER TABLE items ADD COLUMN IF NOT EXISTS type VARCHAR(50) NOT NULL DEFAULT 'Otros';
       ALTER TABLE items ADD COLUMN IF NOT EXISTS barcode VARCHAR(100) UNIQUE;
+      ALTER TABLE items ADD COLUMN IF NOT EXISTS size VARCHAR(50) NOT NULL DEFAULT 'Única';
+      ALTER TABLE items ADD COLUMN IF NOT EXISTS gender VARCHAR(50) NOT NULL DEFAULT 'Unisex';
+      ALTER TABLE item_variants ADD COLUMN IF NOT EXISTS price NUMERIC(10, 2) NOT NULL DEFAULT 0.00;
     `);
+
+    // Update existing variants that have 0.00 price from parent items table
+    await marysoldClient.query(`
+      UPDATE item_variants iv
+      SET price = COALESCE((SELECT price FROM items i WHERE i.id = iv.item_id), 0.00)
+      WHERE iv.price = 0.00;
+    `);
+
+    // Migrate existing items to variants table if variants is empty
+    const variantsCheck = await marysoldClient.query('SELECT COUNT(*) FROM item_variants');
+    if (parseInt(variantsCheck.rows[0].count) === 0) {
+      console.log('Migrating existing items to item_variants table...');
+      await marysoldClient.query(`
+        INSERT INTO item_variants (item_id, size, quantity, barcode, price)
+        SELECT id, size, quantity, barcode, price FROM items
+        ON CONFLICT (barcode) DO NOTHING;
+      `);
+    }
 
     // Create audit_logs table
     console.log('Creating audit_logs table if not exists...');
@@ -172,8 +224,17 @@ async function run() {
         item_id INTEGER NOT NULL,
         item_name VARCHAR(100) NOT NULL,
         quantity INTEGER NOT NULL,
-        price NUMERIC(10, 2) NOT NULL
+        price NUMERIC(10, 2) NOT NULL,
+        size VARCHAR(50) DEFAULT 'Única',
+        barcode VARCHAR(100)
       );
+    `);
+
+    // Migrate sale_items table to add columns if they don't exist yet
+    console.log('Migrating sale_items table to add size and barcode columns if needed...');
+    await marysoldClient.query(`
+      ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS size VARCHAR(50) DEFAULT 'Única';
+      ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS barcode VARCHAR(100);
     `);
 
     // Migrate existing CHECKOUT audit logs to sales and sale_items tables

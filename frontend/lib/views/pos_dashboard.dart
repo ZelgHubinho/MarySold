@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -19,12 +20,14 @@ class PosDashboard extends StatefulWidget {
 
 class _PosDashboardState extends State<PosDashboard> {
   final ItemController _itemController = ItemController();
-  final Map<Item, int> _cart = {};
+  final Map<CartItem, int> _cart = {};
   String _searchQuery = '';
   final _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   String _selectedTypeFilter = 'Todos';
   String _selectedStockFilter = 'Todos';
+  String _selectedSizeFilter = 'Todos';
+  String _selectedGenderFilter = 'Todos';
   bool _isGridCompact = true;
   bool _showFilters = false;
   final ScrollController _scrollController = ScrollController();
@@ -55,45 +58,41 @@ class _PosDashboardState extends State<PosDashboard> {
 
   double get _totalPrice {
     double total = 0.0;
-    _cart.forEach((item, qty) {
-      total += item.price * qty;
+    _cart.forEach((cartItem, qty) {
+      total += cartItem.variant.price * qty;
     });
     return total;
   }
 
-  void _addToCart(Item item) {
+  void _addToCart(Item item, [ItemVariant? variant]) {
+    final targetVariant = variant ?? (item.variants.length == 1 ? item.variants.first : null);
+    if (targetVariant == null) {
+      _showItemImageDetail(item);
+      return;
+    }
     final latestItem = _itemController.items.firstWhere(
       (i) => i.id == item.id,
       orElse: () => item,
     );
-    final cartQty = _cart[latestItem] ?? 0;
-    if (latestItem.quantity - cartQty <= 0) return;
+    final latestVariant = latestItem.variants.firstWhere(
+      (v) => v.id == targetVariant.id,
+      orElse: () => targetVariant,
+    );
+    final cartItem = CartItem(item: latestItem, variant: latestVariant);
+    final cartQty = _cart[cartItem] ?? 0;
+    if (latestVariant.quantity - cartQty <= 0) return;
     setState(() {
-      if (cartQty < latestItem.quantity) {
-        _cart[latestItem] = cartQty + 1;
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Límite de stock alcanzado para este artículo.'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 1),
-          ),
-        );
-      }
+      _cart[cartItem] = cartQty + 1;
     });
   }
 
-  void _removeFromCart(Item item) {
-    final latestItem = _itemController.items.firstWhere(
-      (i) => i.id == item.id,
-      orElse: () => item,
-    );
+  void _removeFromCart(CartItem cartItem) {
     setState(() {
-      final currentQty = _cart[latestItem] ?? 0;
+      final currentQty = _cart[cartItem] ?? 0;
       if (currentQty <= 1) {
-        _cart.remove(latestItem);
+        _cart.remove(cartItem);
       } else {
-        _cart[latestItem] = currentQty - 1;
+        _cart[cartItem] = currentQty - 1;
       }
     });
   }
@@ -181,12 +180,12 @@ class _PosDashboardState extends State<PosDashboard> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    '${entry.key.name} x${entry.value}',
+                                    '${entry.key.item.name} (${entry.key.variant.size}) x${entry.value}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                Text('\$${(entry.key.price * entry.value).toStringAsFixed(2)}'),
+                                Text('\$${(entry.key.variant.price * entry.value).toStringAsFixed(2)}'),
                               ],
                             ),
                           );
@@ -282,38 +281,47 @@ class _PosDashboardState extends State<PosDashboard> {
             return;
           }
 
+          final scannedVariant = item.variants.firstWhere(
+            (v) => v.barcode == barcode,
+            orElse: () => item.variants.first,
+          );
           final latestItem = _itemController.items.firstWhere(
             (i) => i.id == item.id,
             orElse: () => item,
           );
-          final cartQty = _cart[latestItem] ?? 0;
-          if (latestItem.quantity <= 0) {
+          final latestVariant = latestItem.variants.firstWhere(
+            (v) => v.id == scannedVariant.id,
+            orElse: () => scannedVariant,
+          );
+          final cartItem = CartItem(item: latestItem, variant: latestVariant);
+          final cartQty = _cart[cartItem] ?? 0;
+          if (latestVariant.quantity <= 0) {
             messenger.showSnackBar(
               SnackBar(
-                content: Text('"${item.name}" no tiene stock disponible.'),
+                content: Text('"${item.name}" en talla ${latestVariant.size} no tiene stock disponible.'),
                 backgroundColor: Colors.orange,
               ),
             );
             return;
           }
-          if (cartQty >= latestItem.quantity) {
+          if (cartQty >= latestVariant.quantity) {
             messenger.showSnackBar(
               SnackBar(
-                content: Text('Límite de stock alcanzado para "${item.name}".'),
+                content: Text('Límite de stock alcanzado para "${item.name}" (Talla: ${latestVariant.size}).'),
                 backgroundColor: Colors.orange,
               ),
             );
             return;
           }
 
-          _addToCart(item);
+          _addToCart(latestItem, latestVariant);
           if (onScanSuccess != null) {
             onScanSuccess();
           }
 
           messenger.showSnackBar(
             SnackBar(
-              content: Text('"${item.name}" agregado al carrito.'),
+              content: Text('"${item.name}" (${latestVariant.size}) agregado al carrito.'),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 1),
             ),
@@ -327,161 +335,11 @@ class _PosDashboardState extends State<PosDashboard> {
     showDialog(
       context: context,
       builder: (context) {
-        // Calculate remaining stock in real time
-        final cartQty = _cart[item] ?? 0;
-        final remainingStock = item.quantity - cartQty;
-        final isOutOfStock = remainingStock <= 0;
-        final photoUrl = item.fullPhotoUrl;
-
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          elevation: 8,
-          clipBehavior: Clip.antiAlias,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 450),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Top Image area
-                Stack(
-                  children: [
-                    Container(
-                      height: 300,
-                      width: double.infinity,
-                      color: Colors.grey.shade100,
-                      child: photoUrl != null
-                          ? Image.network(
-                              photoUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, err, stack) => const Center(
-                                child: Icon(Icons.broken_image_rounded, size: 80, color: Colors.grey),
-                              ),
-                            )
-                          : const Center(
-                              child: Icon(Icons.image_not_supported_rounded, size: 80, color: Colors.grey),
-                            ),
-                    ),
-                    // Close button
-                    Positioned(
-                      top: 12,
-                      right: 12,
-                      child: CircleAvatar(
-                        backgroundColor: Colors.black.withOpacity(0.4),
-                        child: IconButton(
-                          icon: const Icon(Icons.close_rounded, color: Colors.white),
-                          onPressed: () => Navigator.of(context).pop(),
-                        ),
-                      ),
-                    ),
-                    // Category/Type Pill
-                    Positioned(
-                      bottom: 12,
-                      left: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E3C72).withOpacity(0.85),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          item.type.toUpperCase(),
-                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                // Item details
-                Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.name,
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '\$${item.price.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1E3C72),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: isOutOfStock ? Colors.red.shade50 : Colors.green.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isOutOfStock ? Colors.red.shade100 : Colors.green.shade100,
-                              ),
-                            ),
-                            child: Text(
-                              isOutOfStock ? 'Sin stock' : 'Stock: $remainingStock unidades',
-                              style: TextStyle(
-                                color: isOutOfStock ? Colors.red : Colors.green.shade800,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (item.barcode != null && item.barcode!.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        const Divider(),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Icon(Icons.qr_code_rounded, size: 20, color: Colors.grey),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Código: ${item.barcode}',
-                              style: const TextStyle(color: Colors.grey, fontSize: 14),
-                            ),
-                          ],
-                        ),
-                      ],
-                      const SizedBox(height: 24),
-                      // Add to cart action button
-                      ElevatedButton.icon(
-                        onPressed: isOutOfStock
-                            ? null
-                            : () {
-                                _addToCart(item);
-                                Navigator.of(context).pop();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('"${item.name}" agregado al carrito.'),
-                                    backgroundColor: Colors.green,
-                                    duration: const Duration(seconds: 1),
-                                  ),
-                                );
-                              },
-                        icon: const Icon(Icons.add_shopping_cart_rounded),
-                        label: const Text('Agregar al Carrito', style: TextStyle(fontWeight: FontWeight.bold)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1E3C72),
-                          foregroundColor: Colors.white,
-                          elevation: 2,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          minimumSize: const Size(double.infinity, 50),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+        return ItemDetailDialog(
+          item: item,
+          itemController: _itemController,
+          cart: _cart,
+          onAddToCart: _addToCart,
         );
       },
     );
@@ -569,7 +427,11 @@ class _PosDashboardState extends State<PosDashboard> {
             } else if (_selectedStockFilter == 'Bajo stock (< 5)') {
               matchesStock = item.quantity < 5;
             }
-            return matchesQuery && matchesType && matchesStock;
+            
+            final matchesSize = _selectedSizeFilter == 'Todos' || item.variants.any((v) => v.size == _selectedSizeFilter);
+            final matchesGender = _selectedGenderFilter == 'Todos' || item.gender == _selectedGenderFilter;
+            
+            return matchesQuery && matchesType && matchesStock && matchesSize && matchesGender;
           }).toList();
 
           return Row(
@@ -601,7 +463,7 @@ class _PosDashboardState extends State<PosDashboard> {
                                           },
                                         )
                                       : const Icon(Icons.search_rounded, color: Colors.grey),
-                                  suffixIcon: (_searchQuery.isNotEmpty || _selectedTypeFilter != 'Todos' || _selectedStockFilter != 'Todos')
+                                  suffixIcon: (_searchQuery.isNotEmpty || _selectedTypeFilter != 'Todos' || _selectedStockFilter != 'Todos' || _selectedSizeFilter != 'Todos' || _selectedGenderFilter != 'Todos')
                                       ? IconButton(
                                           icon: const Icon(Icons.clear_rounded),
                                           onPressed: () {
@@ -610,6 +472,8 @@ class _PosDashboardState extends State<PosDashboard> {
                                               _searchQuery = '';
                                               _selectedTypeFilter = 'Todos';
                                               _selectedStockFilter = 'Todos';
+                                              _selectedSizeFilter = 'Todos';
+                                              _selectedGenderFilter = 'Todos';
                                             });
                                           },
                                         )
@@ -715,50 +579,102 @@ class _PosDashboardState extends State<PosDashboard> {
                                 child: Padding(
                                   padding: const EdgeInsets.all(16.0),
                                   child: isDesktop
-                                      ? Row(
+                                      ? Column(
                                           children: [
-                                            Expanded(
-                                              child: DropdownButtonFormField<String>(
-                                                value: _selectedTypeFilter,
-                                                decoration: const InputDecoration(
-                                                  labelText: 'Tipo de Prenda',
-                                                  prefixIcon: Icon(Icons.category_outlined, color: Color(0xFF1E3C72), size: 20),
-                                                  border: InputBorder.none,
-                                                  contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: DropdownButtonFormField<String>(
+                                                    value: _selectedTypeFilter,
+                                                    decoration: const InputDecoration(
+                                                      labelText: 'Tipo de Prenda',
+                                                      prefixIcon: Icon(Icons.category_outlined, color: Color(0xFF1E3C72), size: 20),
+                                                      border: InputBorder.none,
+                                                      contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                                                    ),
+                                                    items: ['Todos', 'Camisa', 'Pantalón', 'Vestido', 'Abrigo', 'Calzado', 'Accesorios', 'Otros'].map((cat) {
+                                                      return DropdownMenuItem(value: cat, child: Text(cat));
+                                                    }).toList(),
+                                                    onChanged: (val) {
+                                                      if (val != null) {
+                                                        setState(() {
+                                                          _selectedTypeFilter = val;
+                                                        });
+                                                      }
+                                                    },
+                                                  ),
                                                 ),
-                                                items: ['Todos', 'Camisa', 'Pantalón', 'Vestido', 'Abrigo', 'Calzado', 'Accesorios', 'Otros'].map((cat) {
-                                                  return DropdownMenuItem(value: cat, child: Text(cat));
-                                                }).toList(),
-                                                onChanged: (val) {
-                                                  if (val != null) {
-                                                    setState(() {
-                                                      _selectedTypeFilter = val;
-                                                    });
-                                                  }
-                                                },
-                                              ),
+                                                const SizedBox(width: 16),
+                                                Expanded(
+                                                  child: DropdownButtonFormField<String>(
+                                                    value: _selectedStockFilter,
+                                                    decoration: const InputDecoration(
+                                                      labelText: 'Disponibilidad / Stock',
+                                                      prefixIcon: Icon(Icons.inventory_outlined, color: Color(0xFF1E3C72), size: 20),
+                                                      border: InputBorder.none,
+                                                      contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                                                    ),
+                                                    items: ['Todos', 'Disponible', 'Sin stock', 'Bajo stock (< 5)'].map((stk) {
+                                                      return DropdownMenuItem(value: stk, child: Text(stk));
+                                                    }).toList(),
+                                                    onChanged: (val) {
+                                                      if (val != null) {
+                                                        setState(() {
+                                                          _selectedStockFilter = val;
+                                                        });
+                                                      }
+                                                    },
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                            const SizedBox(width: 16),
-                                            Expanded(
-                                              child: DropdownButtonFormField<String>(
-                                                value: _selectedStockFilter,
-                                                decoration: const InputDecoration(
-                                                  labelText: 'Disponibilidad / Stock',
-                                                  prefixIcon: Icon(Icons.inventory_outlined, color: Color(0xFF1E3C72), size: 20),
-                                                  border: InputBorder.none,
-                                                  contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                                            const Divider(),
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: DropdownButtonFormField<String>(
+                                                    value: _selectedSizeFilter,
+                                                    decoration: const InputDecoration(
+                                                      labelText: 'Talla',
+                                                      prefixIcon: Icon(Icons.straighten_rounded, color: Color(0xFF1E3C72), size: 20),
+                                                      border: InputBorder.none,
+                                                      contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                                                    ),
+                                                    items: ['Todos', 'Única', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '36', '38', '40', '42', '44'].map((sz) {
+                                                      return DropdownMenuItem(value: sz, child: Text(sz));
+                                                    }).toList(),
+                                                    onChanged: (val) {
+                                                      if (val != null) {
+                                                        setState(() {
+                                                          _selectedSizeFilter = val;
+                                                        });
+                                                      }
+                                                    },
+                                                  ),
                                                 ),
-                                                items: ['Todos', 'Disponible', 'Sin stock', 'Bajo stock (< 5)'].map((stk) {
-                                                  return DropdownMenuItem(value: stk, child: Text(stk));
-                                                }).toList(),
-                                                onChanged: (val) {
-                                                  if (val != null) {
-                                                    setState(() {
-                                                      _selectedStockFilter = val;
-                                                    });
-                                                  }
-                                                },
-                                              ),
+                                                const SizedBox(width: 16),
+                                                Expanded(
+                                                  child: DropdownButtonFormField<String>(
+                                                    value: _selectedGenderFilter,
+                                                    decoration: const InputDecoration(
+                                                      labelText: 'Género',
+                                                      prefixIcon: Icon(Icons.wc_rounded, color: Color(0xFF1E3C72), size: 20),
+                                                      border: InputBorder.none,
+                                                      contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                                                    ),
+                                                    items: ['Todos', 'Unisex', 'Hombre', 'Mujer', 'Niño', 'Niña'].map((gen) {
+                                                      return DropdownMenuItem(value: gen, child: Text(gen));
+                                                    }).toList(),
+                                                    onChanged: (val) {
+                                                      if (val != null) {
+                                                        setState(() {
+                                                          _selectedGenderFilter = val;
+                                                        });
+                                                      }
+                                                    },
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ],
                                         )
@@ -799,6 +715,46 @@ class _PosDashboardState extends State<PosDashboard> {
                                                 if (val != null) {
                                                   setState(() {
                                                     _selectedStockFilter = val;
+                                                  });
+                                                }
+                                              },
+                                            ),
+                                            const Divider(),
+                                            DropdownButtonFormField<String>(
+                                              value: _selectedSizeFilter,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Talla',
+                                                prefixIcon: Icon(Icons.straighten_rounded, color: Color(0xFF1E3C72), size: 20),
+                                                border: InputBorder.none,
+                                                contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                                              ),
+                                              items: ['Todos', 'Única', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '36', '38', '40', '42', '44'].map((sz) {
+                                                return DropdownMenuItem(value: sz, child: Text(sz));
+                                              }).toList(),
+                                              onChanged: (val) {
+                                                if (val != null) {
+                                                  setState(() {
+                                                    _selectedSizeFilter = val;
+                                                  });
+                                                }
+                                              },
+                                            ),
+                                            const Divider(),
+                                            DropdownButtonFormField<String>(
+                                              value: _selectedGenderFilter,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Género',
+                                                prefixIcon: Icon(Icons.wc_rounded, color: Color(0xFF1E3C72), size: 20),
+                                                border: InputBorder.none,
+                                                contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                                              ),
+                                              items: ['Todos', 'Unisex', 'Hombre', 'Mujer', 'Niño', 'Niña'].map((gen) {
+                                                return DropdownMenuItem(value: gen, child: Text(gen));
+                                              }).toList(),
+                                              onChanged: (val) {
+                                                if (val != null) {
+                                                  setState(() {
+                                                    _selectedGenderFilter = val;
                                                   });
                                                 }
                                               },
@@ -852,6 +808,8 @@ class _PosDashboardState extends State<PosDashboard> {
                                                   _searchQuery = '';
                                                   _selectedTypeFilter = 'Todos';
                                                   _selectedStockFilter = 'Todos';
+                                                  _selectedSizeFilter = 'Todos';
+                                                  _selectedGenderFilter = 'Todos';
                                                 });
                                               },
                                               child: const Text('Limpiar Filtros', style: TextStyle(color: Color(0xFF1E3C72))),
@@ -883,7 +841,9 @@ class _PosDashboardState extends State<PosDashboard> {
                                             );
                                           }
                                           final item = filteredItems[idx];
-                                          final cartQty = _cart[item] ?? 0;
+                                          final cartQty = _cart.entries
+                                              .where((entry) => entry.key.item.id == item.id)
+                                              .fold<int>(0, (sum, entry) => sum + entry.value);
                                           final remainingStock = item.quantity - cartQty;
                                           final isOutOfStock = remainingStock <= 0;
                                           final photoUrl = item.fullPhotoUrl;
@@ -925,12 +885,22 @@ class _PosDashboardState extends State<PosDashboard> {
                                                     crossAxisAlignment: CrossAxisAlignment.start,
                                                     children: [
                                                       Text(
-                                                        item.name,
+                                                        '${item.name} (${item.gender})',
                                                         maxLines: 1,
                                                         overflow: TextOverflow.ellipsis,
                                                         style: TextStyle(
                                                           fontWeight: FontWeight.bold, 
-                                                          fontSize: _isGridCompact ? 12 : 15,
+                                                          fontSize: _isGridCompact ? 11 : 14,
+                                                        ),
+                                                      ),
+                                                      SizedBox(height: _isGridCompact ? 2 : 4),
+                                                      Text(
+                                                        'Tallas: ${item.variants.map((v) => v.size).join(", ")}',
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: TextStyle(
+                                                          fontSize: _isGridCompact ? 10 : 12,
+                                                          color: Colors.grey.shade600,
                                                         ),
                                                       ),
                                                       SizedBox(height: _isGridCompact ? 2 : 4),
@@ -938,7 +908,7 @@ class _PosDashboardState extends State<PosDashboard> {
                                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                                         children: [
                                                           Text(
-                                                            '\$${item.price.toStringAsFixed(2)}',
+                                                            item.formattedPriceRange,
                                                             style: TextStyle(
                                                               color: const Color(0xFF1E3C72),
                                                               fontWeight: FontWeight.bold,
@@ -1116,7 +1086,9 @@ class _PosDashboardState extends State<PosDashboard> {
                   separatorBuilder: (context, idx) => const Divider(),
                   itemBuilder: (context, idx) {
                     final entry = cartList[idx];
-                    final item = entry.key;
+                    final cartItem = entry.key;
+                    final item = cartItem.item;
+                    final variant = cartItem.variant;
                     final qty = entry.value;
 
                     return Row(
@@ -1145,14 +1117,14 @@ class _PosDashboardState extends State<PosDashboard> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                item.name,
+                                '${item.name} (${variant.size})',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                '\$${item.price.toStringAsFixed(2)} x unidad',
+                                '\$${variant.price.toStringAsFixed(2)} x unidad',
                                 style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                               ),
                             ],
@@ -1164,7 +1136,7 @@ class _PosDashboardState extends State<PosDashboard> {
                             IconButton(
                               icon: const Icon(Icons.remove_circle_outline_rounded, color: Colors.grey),
                               onPressed: () {
-                                _removeFromCart(item);
+                                _removeFromCart(cartItem);
                                 if (onCartChanged != null) {
                                   onCartChanged();
                                 }
@@ -1179,7 +1151,11 @@ class _PosDashboardState extends State<PosDashboard> {
                                 (i) => i.id == item.id,
                                 orElse: () => item,
                               );
-                              final canAdd = qty < latestItem.quantity;
+                              final latestVariant = latestItem.variants.firstWhere(
+                                (v) => v.id == variant.id,
+                                orElse: () => variant,
+                              );
+                              final canAdd = qty < latestVariant.quantity;
                               return IconButton(
                                 icon: Icon(
                                   Icons.add_circle_outline_rounded,
@@ -1187,7 +1163,7 @@ class _PosDashboardState extends State<PosDashboard> {
                                 ),
                                 onPressed: canAdd
                                     ? () {
-                                        _addToCart(item);
+                                        _addToCart(latestItem, latestVariant);
                                         if (onCartChanged != null) {
                                           onCartChanged();
                                         }
@@ -1388,6 +1364,371 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class ItemDetailDialog extends StatefulWidget {
+  final Item item;
+  final ItemController itemController;
+  final Map<CartItem, int> cart;
+  final Function(Item, [ItemVariant?]) onAddToCart;
+
+  const ItemDetailDialog({
+    super.key,
+    required this.item,
+    required this.itemController,
+    required this.cart,
+    required this.onAddToCart,
+  });
+
+  @override
+  State<ItemDetailDialog> createState() => _ItemDetailDialogState();
+}
+
+class _ItemDetailDialogState extends State<ItemDetailDialog> {
+  List<String> _photos = [];
+  bool _loadingPhotos = true;
+  int _currentPage = 0;
+  final PageController _pageController = PageController();
+  ItemVariant? _selectedVariant;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPhotos();
+    final availableVariants = widget.item.variants.where((v) => v.quantity > 0);
+    if (availableVariants.isNotEmpty) {
+      _selectedVariant = availableVariants.first;
+    } else {
+      _selectedVariant = widget.item.variants.isNotEmpty ? widget.item.variants.first : null;
+    }
+  }
+
+  Future<void> _fetchPhotos() async {
+    try {
+      final secondaryPhotos = await widget.itemController.fetchItemPhotos(widget.item.id);
+      if (mounted) {
+        setState(() {
+          _photos = [
+            if (widget.item.fullPhotoUrl != null) widget.item.fullPhotoUrl!,
+            ...secondaryPhotos,
+          ];
+          _loadingPhotos = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _photos = [
+            if (widget.item.fullPhotoUrl != null) widget.item.fullPhotoUrl!,
+          ];
+          _loadingPhotos = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 8,
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 450),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+            // Top Image Area / Carousel
+            Stack(
+              children: [
+                Container(
+                  height: 300,
+                  width: double.infinity,
+                  color: Colors.grey.shade100,
+                  child: _loadingPhotos
+                      ? const Center(
+                          child: CircularProgressIndicator(),
+                        )
+                      : _photos.isEmpty
+                          ? const Center(
+                              child: Icon(Icons.image_not_supported_rounded, size: 80, color: Colors.grey),
+                            )
+                          : PageView.builder(
+                              controller: _pageController,
+                              scrollBehavior: ScrollConfiguration.of(context).copyWith(
+                                dragDevices: {
+                                  PointerDeviceKind.touch,
+                                  PointerDeviceKind.mouse,
+                                },
+                              ),
+                              itemCount: _photos.length,
+                              onPageChanged: (index) {
+                                setState(() {
+                                  _currentPage = index;
+                                });
+                              },
+                              itemBuilder: (context, index) {
+                                return Image.network(
+                                  _photos[index],
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, err, stack) => const Center(
+                                    child: Icon(Icons.broken_image_rounded, size: 80, color: Colors.grey),
+                                  ),
+                                );
+                              },
+                            ),
+                ),
+                // Left chevron button
+                if (!_loadingPhotos && _photos.length > 1 && _currentPage > 0)
+                  Positioned(
+                    left: 8,
+                    top: 130,
+                    child: CircleAvatar(
+                      backgroundColor: Colors.black.withOpacity(0.4),
+                      child: IconButton(
+                        icon: const Icon(Icons.chevron_left_rounded, color: Colors.white),
+                        onPressed: () {
+                          _pageController.previousPage(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                // Right chevron button
+                if (!_loadingPhotos && _photos.length > 1 && _currentPage < _photos.length - 1)
+                  Positioned(
+                    right: 8,
+                    top: 130,
+                    child: CircleAvatar(
+                      backgroundColor: Colors.black.withOpacity(0.4),
+                      child: IconButton(
+                        icon: const Icon(Icons.chevron_right_rounded, color: Colors.white),
+                        onPressed: () {
+                          _pageController.nextPage(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                // Dot Indicators
+                if (!_loadingPhotos && _photos.length > 1)
+                  Positioned(
+                    bottom: 12,
+                    right: 0,
+                    left: 0,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        _photos.length,
+                        (index) => AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          height: 8,
+                          width: _currentPage == index ? 16 : 8,
+                          decoration: BoxDecoration(
+                            color: _currentPage == index
+                                ? Colors.white
+                                : Colors.white.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                // Close button
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: CircleAvatar(
+                    backgroundColor: Colors.black.withOpacity(0.4),
+                    child: IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.white),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                ),
+                // Category/Type Pill
+                Positioned(
+                  bottom: 12,
+                  left: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E3C72).withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      widget.item.type.toUpperCase(),
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            // Item details
+            Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.item.name,
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Chip(
+                        label: Text(widget.item.gender),
+                        backgroundColor: Colors.blue.shade50,
+                        labelStyle: const TextStyle(color: Color(0xFF1E3C72), fontSize: 12, fontWeight: FontWeight.bold),
+                        padding: EdgeInsets.zero,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Seleccione Talla:',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: widget.item.variants.map((v) {
+                      final isSelected = _selectedVariant?.id == v.id;
+                      final cartQty = widget.cart[CartItem(item: widget.item, variant: v)] ?? 0;
+                      final avStock = v.quantity - cartQty;
+                      final hasStock = avStock > 0;
+
+                      return ChoiceChip(
+                        label: Text('${v.size} ($avStock)'),
+                        selected: isSelected,
+                        onSelected: hasStock ? (selected) {
+                          if (selected) {
+                            setState(() {
+                              _selectedVariant = v;
+                            });
+                          }
+                        } : null,
+                        selectedColor: const Color(0xFF1E3C72),
+                        labelStyle: TextStyle(
+                          color: isSelected ? Colors.white : (hasStock ? Colors.black87 : Colors.grey),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                        backgroundColor: Colors.grey.shade100,
+                        disabledColor: Colors.grey.shade200.withOpacity(0.5),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _selectedVariant != null
+                            ? '\$${_selectedVariant!.price.toStringAsFixed(2)}'
+                            : '\$${widget.item.price.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E3C72),
+                        ),
+                      ),
+                      if (_selectedVariant != null) ...[
+                        (() {
+                          final cartQty = widget.cart[CartItem(item: widget.item, variant: _selectedVariant!)] ?? 0;
+                          final avStock = _selectedVariant!.quantity - cartQty;
+                          final isOut = avStock <= 0;
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: isOut ? Colors.red.shade50 : Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isOut ? Colors.red.shade100 : Colors.green.shade100,
+                              ),
+                            ),
+                            child: Text(
+                              isOut ? 'Sin stock' : 'Stock: $avStock unidades',
+                              style: TextStyle(
+                                color: isOut ? Colors.red : Colors.green.shade800,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          );
+                        })(),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (_selectedVariant != null && _selectedVariant!.barcode != null && _selectedVariant!.barcode!.isNotEmpty) ...[
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.qr_code_rounded, size: 20, color: Colors.grey),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Código de barras de talla: ${_selectedVariant!.barcode}',
+                          style: const TextStyle(color: Colors.grey, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  // Add to cart action button
+                  ElevatedButton.icon(
+                    onPressed: (_selectedVariant == null ||
+                            (widget.cart[CartItem(item: widget.item, variant: _selectedVariant!)] ?? 0) >= _selectedVariant!.quantity)
+                        ? null
+                        : () {
+                            widget.onAddToCart(widget.item, _selectedVariant);
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('"${widget.item.name}" (Talla: ${_selectedVariant!.size}) agregado al carrito.'),
+                                backgroundColor: Colors.green,
+                                duration: const Duration(seconds: 1),
+                              ),
+                            );
+                          },
+                    icon: const Icon(Icons.add_shopping_cart_rounded),
+                    label: const Text('Agregar al Carrito', style: TextStyle(fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E3C72),
+                      foregroundColor: Colors.white,
+                      elevation: 2,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      minimumSize: const Size(double.infinity, 50),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
     );
   }
 }

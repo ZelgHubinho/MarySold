@@ -139,6 +139,51 @@ class ApiClient {
     return _handleResponse(response);
   }
 
+  // Multipart request for multiple file uploads under a single key
+  Future<http.Response> multipartList(
+    String method,
+    String path,
+    Map<String, String> fields,
+    String fileKey,
+    List<String> filePaths,
+  ) async {
+    final token = await getToken();
+    final uri = Uri.parse('${ApiConstants.baseUrl}$path');
+    final request = http.MultipartRequest(method, uri);
+
+    // Add authentication headers
+    request.headers.addAll(_getHeaders(token, isJson: false));
+
+    // Add fields
+    request.fields.addAll(fields);
+
+    // Add files
+    for (final filePath in filePaths) {
+      if (filePath.isNotEmpty) {
+        final extension = filePath.split('.').last.toLowerCase();
+        MediaType? contentType;
+        if (extension == 'jpg' || extension == 'jpeg') {
+          contentType = MediaType('image', 'jpeg');
+        } else if (extension == 'png') {
+          contentType = MediaType('image', 'png');
+        } else if (extension == 'gif') {
+          contentType = MediaType('image', 'gif');
+        } else if (extension == 'webp') {
+          contentType = MediaType('image', 'webp');
+        }
+        request.files.add(await http.MultipartFile.fromPath(
+          fileKey,
+          filePath,
+          contentType: contentType,
+        ));
+      }
+    }
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    return _handleResponse(response);
+  }
+
   http.Response _handleResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return response;
